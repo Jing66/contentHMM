@@ -1,0 +1,12 @@
+#!/bin/bash
+PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin
+export PATH
+for next in *.tgz
+	do
+		echo "Unzipping $next"
+		tar -xzf $next
+	done
+
+exit 0
+
+scp 1988/12.tgz jliu164@dp-gpu1.cs.mcgill.ca:~/corpus/nyt_corpus/data/1988
