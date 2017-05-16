@@ -1,20 +1,60 @@
 import xml.etree.ElementTree as ET
 import os
 import sqlite3
+import thread
+import unicodedata
+import threading
+import json
+
+
+########################################################################################################
+############################### extract topics from raw files 	##############################
+########################################################################################################
+def extract_tag(in_path):
+	"""
+	return a set of tags the raw file has
+	"""
+	tag = []
+	tree = ET.parse(in_path)
+	head = tree.getroot().find("head")
+	for descr in head.findall('docdata/identified-content/classifier[@type="descriptor"]'):
+		tag.append(descr.text)
+	return set(tag)
+
+def extract_tag_all(root_dir):
+	"""
+	save an index of all the tags and files
+	"""
+	index = {}
+	for root, dirs, files in os.walk(root_dir):
+		path = [os.path.join(root,name) for name in files if len(name.split("."))==2 and name.split(".")[1]=="xml"]
+		for p in path:
+			try:
+				tags = extract_tag(p)
+			except:
+				continue
+			name = p.split("/")[-1].split(".")[0]
+			for tag in tags:
+				item = index.get(tag)
+				if item is None:
+					index[tag] = [name]
+				else:
+					item.append(name)
+					index.update([(tag,item)])
+
+	f = open(root_dir+'topics.txt','wb')
+	json.dump(index,f)
+
+########################################################################################################
+################## extract summary, full-article, headlines from raw files 	#########################
+########################################################################################################
 
 def extract(in_path):
-
 	tree = ET.parse(in_path)
-	
 	summary=""
 	body = tree.getroot().find("body")
 	for head in body.findall('body.head/abstract/p'):
-		if isinstance(head.text,unicode):
-			summary = ""
-			break
-		summary+=head.text+"\n"
-	
-	
+		summary += head.text	
 	article=""
 	body = tree.getroot().find("body")
 	contents = body.find('body.content')
@@ -24,7 +64,7 @@ def extract(in_path):
 		if para!="full_text":
 			continue
 		for txt in content.findall('p'):
-			article+=txt.text+"\n"
+			article+=txt.text
 	
 	h1 = tree.getroot().find("body/body.head/hedline/hl1")
 	meta = h1.text
@@ -44,7 +84,7 @@ def extractall(root_dir):
 
 	for root, dirs, files in os.walk(root_dir):
 		# get all .xml file path under year/XX/XX
-		path = [os.path.join(root,name) for name in files if name.split(".")[1]=="xml"]
+		path = [os.path.join(root,name) for name in files if len(name.split("."))==2 and name.split(".")[1]=="xml"]
 		for p in path:
 			try:
 				extraction = extract(p)
@@ -53,17 +93,58 @@ def extractall(root_dir):
 				continue
 			name = p.split("/")[-1].split(".")[0]
 
-			# skip if any element is missing
-			if extraction[0]=="" or extraction[1]=="" or extraction[2]=="":			
+			# skip if contain non-ascii or some parts missing
+			if extraction[0]=="" or extraction[1]=="" or extraction[2]=="":
+				print("missing part on "+name)			
 				continue
 			for i in range(3):
 				f = open(process_path[i]+"/"+name+".txt","wb")
 				try:
 					f.write(extraction[i])
 				except UnicodeEncodeError:
-					f.write(extraction[i].encode("utf16"))
+					print("Unicode encoding: "+p)
+					f.write(extraction[i].encode("utf8"))
 				f.close()
 
+
+
+class myThreads(threading.Thread):
+	def __init__(self,in_dir,number):
+		threading.Thread.__init__(self)
+		self._dir = in_dir
+		self._number = number
+	def run(self):
+		print("Starting: "+str(self._number))
+		extract_tag_all(self._dir)
+		print("Existing: "+str(self._number))
+
+
+def extract_multi(in_dir,start,finish):
+	threads = []
+	for i in range(start,finish+1):
+		path= in_dir+str(i)
+		thread = myThreads(path,i)
+		threads.append(thread)
+
+	for thread in threads:
+		thread.start()
+
+	for t in threads:
+		t.join()
+	print(str(start)+"-"+str(finish)+" Done")
+
+
+
+########################################################################################################
+################################ preprocess extracted files ###################################
+########################################################################################################
+def annotate(content, in_dir,start,end):
+    for i in range(start,end):
+        in_path = in_dir+content+'/'+str(i)+content
+        out_path = in_dir+content+"_annotated/"+str(i)+content+"_annotated"
+        annotate_all(in_path,out_path)
+
+        print("Annotating "+content+"for "+str(i)+"Done!")
 
 def annotate_all(in_dir, out_dirs):
 	import corenlpy
@@ -71,21 +152,26 @@ def annotate_all(in_dir, out_dirs):
 		os.makedirs(out_dirs)
 
 	corenlpy.corenlp(in_dirs=in_dir, out_dir=out_dirs,
-		annotators=['tokenize','ssplit','pos','lemma','parse','ner','relation','dcoref','natlog'],
-		threads=4,output_format='xml')
-	# Can't tokenize unicode files -- FIXME
+		annotators=['tokenize','ssplit','pos','lemma','ner','parse','depparse','dcoref','relation'],
+		threads=12,output_format='xml')
+	
 
+
+
+########################################################################################################
+############################### store paths of all files     ################################
+########################################################################################################
 # store all file paths under root into db
 def store(root_dir):
 	conn = sqlite3.connect("nyt.db")
 	c = conn.cursor()
-	c.execute("""CREATE TABLE IF NOT EXISTS nyt(id integer PRIMARY KEY, orinigal_path text NOT NULL);""")
+	c.execute("""CREATE TABLE IF NOT EXISTS nyt(file_id integer, orinigal_path text NOT NULL);""")
 	
 	# entry:[(id,path)]
 	entry = []
 	for root, dirs, files in os.walk(root_dir):
 		# get all .xml file path under year/XX/XX
-		path = [os.path.join(root,name) for name in files if name.split(".")[1]=="xml"]
+		path = [os.path.join(root,name) for name in files if len(name.split("."))==2 and name.split(".")[1]=="xml"]
 		for p in path:
 			name = p.split("/")[-1].split(".")[0]
 			entry.append((name,p))
@@ -99,35 +185,57 @@ def store(root_dir):
 def get_path(file_id):
 	conn = sqlite3.connect("nyt.db")
 	c = conn.cursor()
-	query = "SELECT * FROM nyt WHERE id=="+str(file_id)
+	query = "SELECT * FROM nyt WHERE file_id=="+str(file_id)
 	c.execute(query)
 	out = c.fetchone()
 	conn.close()
 	return out[1]
 
 
+
+#######################################################################################################
+################################################# Testing	###########################################
+#######################################################################################################
+
 # testing
 def test():
 	# test extract
-	in_path ="/Users/liujingyun/Desktop/NLP/nyt_corpus/data/2001/05/05/1290809.xml"
+	in_path ="/Users/liujingyun/Desktop/NLP/nyt_corpus/data/2007/02/04/1823747.xml"
+	
 	summary, content, meta = extract(in_path)
-	print(summary=="")
+	# print(len(summary),len(content),len(meta))
 	# f = open("test1","wb")
 	# try:
 	# 	f.write(content)
 	# except UnicodeEncodeError:
 	# 	print("Encode in Unicode!")
-	# 	f.write(content.encode("utf16"))
+	# 	f.write(content.encode("utf8"))
 	# f.close()
 
 	#test extractall
+	# in_dir = '/home/ml/jliu164/corpus/nyt_corpus/'
 	in_dir = '/Users/liujingyun/Desktop/NLP/nyt_corpus/data/'
-	#extractall(in_dir)
+	in_dir_200701 = '/Users/liujingyun/Desktop/NLP/nyt_corpus/data/2007/01'
+	in_dir_200702 = '/Users/liujingyun/Desktop/NLP/nyt_corpus/data/2007/02'
+	#extractall(in_dir_200701)
+	# thread1 = myThreads(in_dir_200701,"0701")
+	# thread2 = myThreads(in_dir_200702,"0702")
+	# thread1.start()
+	# thread2.start()
+	#extract_multi(in_dir,2006,2007)
+	extract_tag_all(in_dir)
+
+
 	
 	#test annotate_all
-	in_dir = '/Users/liujingyun/Desktop/NLP/nyt_corpus/data/summary'
-	out_dir = '/Users/liujingyun/Desktop/NLP/nyt_corpus/data/summary_annotated'
+	in_dir = '/Users/liujingyun/Desktop/NLP/nyt_corpus/data/2007content'
+	out_dir = '/Users/liujingyun/Desktop/NLP/nyt_corpus/summary_annotated'
 	#annotate_all(in_dir, out_dir)
+
+	for i in range(1987,2008):
+		in_path = '/Users/liujingyun/Desktop/NLP/nyt_corpus/data/'+str(i)+'content'
+		out_path = '/Users/liujingyun/Desktop/NLP/nyt_corpus/content_annotated/'+str(i)
+		#annotate_all(in_path, out_path)
 
 
 if __name__ == '__main__':

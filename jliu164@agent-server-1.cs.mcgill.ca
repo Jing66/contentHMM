@@ -24,10 +24,15 @@ def extract(in_path):
 		if para!="full_text":
 			continue
 		for txt in content.findall('p'):
+			if isinstance(txt.text,unicode):
+				article = ""
+				break
 			article+=txt.text+"\n"
 	
 	h1 = tree.getroot().find("body/body.head/hedline/hl1")
 	meta = h1.text
+	if isinstance(meta, unicode):
+		meta = ""
 	
 	return summary,article, meta
 
@@ -44,7 +49,7 @@ def extractall(root_dir):
 
 	for root, dirs, files in os.walk(root_dir):
 		# get all .xml file path under year/XX/XX
-		path = [os.path.join(root,name) for name in files if name.split(".")[1]=="xml"]
+		path = [os.path.join(root,name) for name in files if len(name.split("."))==2 and name.split(".")[1]=="xml"]
 		for p in path:
 			try:
 				extraction = extract(p)
@@ -53,7 +58,7 @@ def extractall(root_dir):
 				continue
 			name = p.split("/")[-1].split(".")[0]
 
-			# skip if any element is missing
+			# skip if contain non-ascii or some parts missing
 			if extraction[0]=="" or extraction[1]=="" or extraction[2]=="":			
 				continue
 			for i in range(3):
@@ -61,6 +66,7 @@ def extractall(root_dir):
 				try:
 					f.write(extraction[i])
 				except UnicodeEncodeError:
+					print("Unicode encoding: "+p)
 					f.write(extraction[i].encode("utf16"))
 				f.close()
 
@@ -79,13 +85,13 @@ def annotate_all(in_dir, out_dirs):
 def store(root_dir):
 	conn = sqlite3.connect("nyt.db")
 	c = conn.cursor()
-	c.execute("""CREATE TABLE IF NOT EXISTS nyt(id integer PRIMARY KEY, orinigal_path text NOT NULL);""")
+	c.execute("""CREATE TABLE IF NOT EXISTS nyt(file_id integer, orinigal_path text NOT NULL);""")
 	
 	# entry:[(id,path)]
 	entry = []
 	for root, dirs, files in os.walk(root_dir):
 		# get all .xml file path under year/XX/XX
-		path = [os.path.join(root,name) for name in files if name.split(".")[1]=="xml"]
+		path = [os.path.join(root,name) for name in files if len(name.split("."))==2 and name.split(".")[1]=="xml"]
 		for p in path:
 			name = p.split("/")[-1].split(".")[0]
 			entry.append((name,p))
@@ -99,7 +105,7 @@ def store(root_dir):
 def get_path(file_id):
 	conn = sqlite3.connect("nyt.db")
 	c = conn.cursor()
-	query = "SELECT * FROM nyt WHERE id=="+str(file_id)
+	query = "SELECT * FROM nyt WHERE file_id=="+str(file_id)
 	c.execute(query)
 	out = c.fetchone()
 	conn.close()
@@ -111,7 +117,7 @@ def test():
 	# test extract
 	in_path ="/Users/liujingyun/Desktop/NLP/nyt_corpus/data/2001/05/05/1290809.xml"
 	summary, content, meta = extract(in_path)
-	print(summary=="")
+	print(len(summary),len(content),len(meta))
 	# f = open("test1","wb")
 	# try:
 	# 	f.write(content)

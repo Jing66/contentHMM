@@ -1,0 +1,3 @@
+tokenize.model = stanford-french-corenlp-2016-10-31-models
+threads = 1
+annotators = tokenize, ssplit, pos, lemma, ner, parse, dcoref
