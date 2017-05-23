@@ -12,38 +12,58 @@ import json
 ########################################################################################################
 def extract_tag(in_path):
 	"""
-	return a set of tags the raw file has
+	return a set of tags the raw file has: (indexing_service, online_producer)
 	"""
-	tag = []
+	tag_indexing = []
+	tag_online = []
 	tree = ET.parse(in_path)
 	head = tree.getroot().find("head")
 	for descr in head.findall('docdata/identified-content/classifier[@type="descriptor"]'):
-		tag.append(descr.text)
-	return set(tag)
+		if descr.get('class') == 'indexing_service':
+			tag_indexing.append(descr.text)
+		if descr.get('class') == 'online_producer':
+			tag_online.append(descr.text)
+	return set(tag_indexing), set(tag_online)
 
 def extract_tag_all(root_dir):
 	"""
 	save an index of all the tags and files
 	"""
 	index = {}
+	online_prod = {}
 	for root, dirs, files in os.walk(root_dir):
 		path = [os.path.join(root,name) for name in files if len(name.split("."))==2 and name.split(".")[1]=="xml"]
 		for p in path:
 			try:
-				tags = extract_tag(p)
+				tag_indexing, tag_online= extract_tag(p)
 			except:
-				continue
+				tag_indexing, tag_online = set([]),set([])
+				print("Both empty: "+p)
+			#name = ("/").join(p.split("/")[-3:]).split(".")[0]
 			name = p.split("/")[-1].split(".")[0]
-			for tag in tags:
-				item = index.get(tag)
-				if item is None:
+			if tag_indexing == set([]):
+				tag_indexing.update(["NO TAG"])
+			if tag_online == set([]):
+				tag_online.update(["NO TAG"])
+
+			for tag in tag_indexing:
+				item_index = index.get(tag)
+				if item_index is None:
 					index[tag] = [name]
 				else:
-					item.append(name)
-					index.update([(tag,item)])
-
-	f = open(root_dir+'topics.txt','wb')
+					item_index.append(name)
+					index.update([(tag,item_index)])
+			for tag in tag_online:
+				item_index = online_prod.get(tag)
+				if item_index is None:
+					online_prod[tag] = [name]
+				else:
+					item_index.append(name)
+					online_prod.update([(tag,item_index)])
+	f = open(root_dir+'topics_indexing_services.json','wb')
 	json.dump(index,f)
+	f = open(root_dir + 'topics_online_producer.json','wb')
+	json.dump(online_prod,f)
 
 ########################################################################################################
 ################## extract summary, full-article, headlines from raw files 	#########################
@@ -94,8 +114,8 @@ def extractall(root_dir):
 			name = p.split("/")[-1].split(".")[0]
 
 			# skip if contain non-ascii or some parts missing
-			if extraction[0]=="" or extraction[1]=="" or extraction[2]=="":
-				print("missing part on "+name)			
+			if extraction[0]=="" or extraction[1]=="":
+				#print("missing part on "+name)			
 				continue
 			for i in range(3):
 				f = open(process_path[i]+"/"+name+".txt","wb")
@@ -122,7 +142,7 @@ class myThreads(threading.Thread):
 def extract_multi(in_dir,start,finish):
 	threads = []
 	for i in range(start,finish+1):
-		path= in_dir+str(i)
+		path= in_dir+str(i)+'/'
 		thread = myThreads(path,i)
 		threads.append(thread)
 
@@ -213,17 +233,18 @@ def test():
 	# f.close()
 
 	#test extractall
-	# in_dir = '/home/ml/jliu164/corpus/nyt_corpus/'
-	in_dir = '/Users/liujingyun/Desktop/NLP/nyt_corpus/data/'
-	in_dir_200701 = '/Users/liujingyun/Desktop/NLP/nyt_corpus/data/2007/01'
+	# in_dir =s
+	in_dir = "/home/ml/jliu164/corpus/nyt_corpus/data/"
+	in_dir_2006 = '/Users/liujingyun/Desktop/NLP/nyt_corpus/data/2006'
 	in_dir_200702 = '/Users/liujingyun/Desktop/NLP/nyt_corpus/data/2007/02'
-	#extractall(in_dir_200701)
+	tag_path = "/Users/liujingyun/Desktop/NLP/nyt_corpus/data/2006/01/02/1729112.xml"
+	extractall(in_dir_2006)
 	# thread1 = myThreads(in_dir_200701,"0701")
 	# thread2 = myThreads(in_dir_200702,"0702")
 	# thread1.start()
 	# thread2.start()
 	#extract_multi(in_dir,2006,2007)
-	extract_tag_all(in_dir)
+	#extract_tag_all(in_dir)
 
 
 	
