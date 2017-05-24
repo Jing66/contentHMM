@@ -233,7 +233,6 @@ def test():
 	# f.close()
 
 	#test extractall
-	# in_dir =s
 	in_dir = "/home/ml/jliu164/corpus/nyt_corpus/data/"
 	in_dir_2006 = '/Users/liujingyun/Desktop/NLP/nyt_corpus/data/2006'
 	in_dir_200702 = '/Users/liujingyun/Desktop/NLP/nyt_corpus/data/2007/02'
