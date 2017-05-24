@@ -182,10 +182,11 @@ class ContentTagger():
     ############################################ Emission Probability for sentences  #####################################
     def emission_prob_all(self):
         # create cache for countings 
-        cache = np.zeros((self._m-1, self._V+3, self._V+3))
-        #cache = dok_matrix((self._V+3, self._V+3))
+        emis = []
         # fill in cache
         for si in range(self._m - 1):
+            cache = dok_matrix((self._V+3, self._V+3))
+
             sents = self._clusters[si]
             seqs = [word_tokenize(i) for i in sents]
             bigram_seqs = [list(bigrams(j)) for j in seqs]
@@ -196,8 +197,9 @@ class ContentTagger():
                 if(tup[0] == END_SENT):
                     print(tup)
                     continue
-                cache[si,self._map[tup[0]],self._map[tup[1]]] += big_count_all[tup]
-        return cache
+                cache[self._map[tup[0]],self._map[tup[1]]] += big_count_all[tup]
+            emis.append(cache)
+        return emis
 
 
     def sent_logprob(self, sents_all):
@@ -210,15 +212,18 @@ class ContentTagger():
         # prob for emis_etc
         emis_etc = np.zeros(len(sents_all))
         # unigram cache
-        uni_cache = cache.sum(axis =2) # [i,j] = f_ci(map[j])
-
+        uni_cache = [i.sum(axis=1).ravel().getA().flatten() for i in cache] # [i,j] = f_ci(map[j])
+        uni_cache = np.array(uni_cache)
+        
         for j in range(len(sents_all)):
             seq = sents_all[j]
             bigrams_seq = list(bigrams(word_tokenize(seq)))
             if bigrams_seq[0][0] == START_DOC:
                 bigrams_seq = bigrams_seq[1:]
             for bigr in bigrams_seq:
-                word_prob = self.cal_prob(cache[:,self._map[bigr[0]],self._map[bigr[1]]], uni_cache[:,self._map[bigr[0]]])
+                state_cache = [ci[self._map[bigr[0]],self._map[bigr[1]]] for ci in cache]
+                state_cache = np.array(state_cache)
+                word_prob = self.cal_prob(state_cache, uni_cache[:,self._map[bigr[0]]])
                 emis_prob[:,j] += np.log(word_prob)
                 cache_max[self._map[bigr[0]],self._map[bigr[1]]] = max(np.max(word_prob), cache_max[self._map[bigr[0]],self._map[bigr[1]]])
 
@@ -291,6 +296,7 @@ class ContentTagger():
                 [1] a new flat clusters
         """
         sents = [di for i in self._docs for di in i]
+        
         if docs:
             sents = [i for val in docs for i in val]
         
@@ -381,8 +387,8 @@ class ContentTagger():
             # print(self._emis)
             # print("New transition log prob: ")
             # print(self._trans)
-            # print("Local flat cluster: ")
-            # print(self._flat)
+            print("Local flat cluster: ")
+            print(self._flat)
 
             if iteration>0 and abs(log_prob - last_logprob) < converg_logprob:
                 converged = True
@@ -475,21 +481,25 @@ if __name__ == '__main__':
     # v ,f= myTagger.viterbi(myTagger._docs)
     # print(f)
 
-    test = ["So how about this ohhhh whaaa? This is a big foo bar right, is a. This is a large apple bar right.\
-    That must be something else right.","That ohhhh whaaa be something else right. This is a foo bar again right. is a"]
-    myTagger = ContentTagger(test, 3,1,1,3)
-    # test_list = myTagger._docs
+    # test = ["So how about this ohhhh whaaa? This is a big foo bar right, is a. This is a large apple bar right.\
+    # That must be something else right.","That ohhhh whaaa be something else right. This is a foo bar again right. is a"]
+    # myTagger = ContentTagger(test, 3,1,1,3)
+    # test_list = [val for i in myTagger._docs for val in i]
+
+    # print("========Testing Sentence prob ==========")
+    # sent = myTagger.sent_logprob(test_list)
+    # print(sent)
     
     # print("========Testing Viterbi==========")
-    # v ,f= myTagger.viterbi(test_list)
+    # v ,f= myTagger.viterbi()
     # print(v)
     # print(f)
 
     # print("========Testing Foward Algo ==========")
     # print(myTagger.forward_algo())
 
-    print("========Testing Training ==========")
-    myTagger.train_unsupervised()
+    # print("========Testing Training ==========")
+    # myTagger.train_unsupervised()
     # v,f = myTagger.viterbi(test_flat)
     # print("Final Clusters and flat: ")
     # print(myTagger._clusters)
