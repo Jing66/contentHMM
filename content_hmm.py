@@ -3,18 +3,22 @@ from nltk import bigrams
 import math
 import numpy as np
 import os
-
-from nltk import word_tokenize,sent_tokenize
+import re
+import json
 import scipy.cluster.hierarchy as hac
 from collections import Counter
 from scipy.misc import comb
 from scipy.sparse import dok_matrix
 #import matplotlib.pyplot as plt
+from corenlpy import AnnotatedText as A
+import pickle
 
+punctuation = set([',',':','.','(',')','`','\'','$','\"',"CD"])
 START_SENT = "**START_SENT**"
 START_DOC = "**START_DOC**"
 END_SENT = "**END_SENT**"
 UNK = "**UNK**"
+
 ########################################################################################################
 ################################# Create k clusters to initialize ######################################
 ########################################################################################################
@@ -30,16 +34,16 @@ def similarity(bigrams1,bigrams2):
     else:
         return 1 - float(numer)/denom
 
-# how do we determine k? -- we don't know yet
 def make_cluster_tree(text_seq):
     """
-    para text_seq: list of sentences
+    para text_seq: list of sentences. each sentence is list of words
     return linkage
     """
     # generate condensed distance matrix
-    print("length of text_seq: "+str(len(text_seq)))
+    print("Clustering "+str(len(text_seq))+" sentences...")
     N = len(text_seq)
-    dicts = [word_tokenize(i) for i in text_seq]
+    #dicts = [word_tokenize(i) for i in text_seq]
+    dicts = text_seq
     bigr = [set(bigrams(i)) for i in dicts]
 
     cond_arr = np.empty(int(comb(N,2)))
@@ -83,56 +87,64 @@ def filter_etc(clustered_text, flat, T):
 
     lzt = [[val for sub in etcetera_list for val in sub]]
     rest = [c for c in clustered_text if not c in etcetera_list]
+    out = rest + lzt if lzt != [[]] else rest
     m = max(flat)-len(etcetera_list)+1
 
     flat_etc = [i for i in range(len(clustered_text)) if np.count_nonzero(flat==i) < T ] 
     flat_etc = np.array(flat_etc)
     flat_out = [flat[i]-np.where(flat_etc<flat[i])[0].size if not flat[i] in flat_etc else m for i in range(len(flat))]
-    return rest+lzt, flat_out
+    return out, flat_out
 
-def insert_starts(docs):
+
+def preprocess(file_path):
     """
-    insert **START_DOC** before the start of each article; **START_SENT** before the start of each sentence Return the list of articles
-    return a list of documents, each is a list of sentences
+    insert **START_DOC** before the start of each article; **START/END_SENT** before the start/end of each sentence;
+    remove punctuation; replace numbers with 5, #digits are the same
+    input a file directory
+    return [0]: a document, in the form of a list of sentences
+            [1]: a set of all vocabulary
     """
-    out = []
-    sents = []
-
-    for doc in docs:
-        try:
-            sents = sent_tokenize(doc)
-        except:
-            continue
-        start_sents = [START_SENT+" "+sent.lower()+" "+END_SENT for sent in sents]
-        #start_sents.insert(0,START_DOC)
-        start_sents[0] = START_DOC+" "+start_sents[0]
-        out.append(start_sents)
-
-    return out
-
-def vocab(docs):
-    """return a set of all words in corpus """
-    sents = [word_tokenize(i.lower()) for i in docs]
+    docs = []
+    vocab = set()
+    try:
+        xml = open(file_path).read()
+    except:
+        print("Cannot Open File "+file_path)
+        return docs,vocab
+    annotated_text = A(xml)
+    for sentence in annotated_text.sentences:
+        tokens = sentence['tokens']
+        tokens = [i['lemma'].lower() if i['pos'] not in punctuation else numfy(i['lemma']) for i in tokens]
+        vocab = vocab.union(set(tokens))
+        tokens.insert(0,START_SENT)
+        tokens.append(END_SENT) 
+        docs.append(tokens)
     
-    vocab = [set(si) for si in sents]
-    sets = reduce(lambda a,b:a.union(b),vocab)
-    return sets
+    docs[0] = [START_DOC]+docs[0]   #['**START_DOC**', '**START_SENT**', u'the', u'head', u'of', u'the', u'united', u'nations', u'election', u'agency', u'say', u'sunday', u'that', u'she', u'would', u'resist', u'a', u'report', u'action', u'to', u'oust', u'she', u'from', u'she', u'position', u',', u'a', u'move', u'that', u'would', u'come', u'a', u'week', u'before', u'crucial', u'election', u'she', u'office', u'be', u'oversee', u'in', u'iraq.secretary', u'general', u'kofi', u'annan', u'plan', u'to', u'deliver', u'a', u'dismissal', u'letter', u'to', u'carina', u'perelli', u',', u'head', u'of', u'the', u'united', u'nations', u"'", u'electoral', u'assistance', u'division', u',', u'the', u'associated', u'press', u'report', u'and', u'two', u'united', u'nations', u'official', u'confirm', u'.', '**END_SENT**']]
+    return docs, vocab
+
+
+def numfy(word):
+    if not bool(re.search(r'\d', word)):
+        return word
+    else:
+        return re.sub(r'[0-9]','5',word)
 
 def logsumexp(arr): 
     max_ = arr.max()
     return np.log(np.sum(np.exp(arr - max_))) + max_
+
 ########################################################################################################
 ############################################ Content Tagger Class  #####################################
 ########################################################################################################
 
 class ContentTagger():
-    def __init__(self, docs, k, delta_1, delta_2, T):
-        self._docs = insert_starts(docs) # omit **Start Doc**
+    def __init__(self, docs, vocab, k, delta_1, delta_2, T):
+        self._docs = docs # a list of documents, each is a list of sentences
         self._delta_1 = delta_1
         self._delta_2 = delta_2
         flat_docs = [i for di in self._docs for i in di]
 
-        # clustered sentences have **start**
         
         self._tree = make_cluster_tree(flat_docs)
     
@@ -142,14 +154,12 @@ class ContentTagger():
         # plt.show()
 
         cluster ,flat_c = make_clusters(flat_docs,self._tree, k)
-       
-        self._clusters,self._flat = filter_etc(cluster,flat_c, T)
-        # self._clusters, self._flat = cluster,flat_c
+        # self._clusters is a list of clusters, each containing a list of sentences, each containing a list of words
+        self._clusters,self._flat = filter_etc(cluster,flat_c, T) 
+        
         self._m = len(self._clusters)
-        self._vocab = vocab(flat_docs)
-        self._vocab.discard(START_DOC.lower())
-        self._vocab.discard(START_SENT.lower())
-        self._vocab.discard(END_SENT.lower())
+
+        self._vocab = vocab
 
         self._V = len(self._vocab)
 
@@ -162,22 +172,13 @@ class ContentTagger():
         print("After filter, total #cluster: "+str(self._m))
         # print(self._vocab)
         print("Vocabulary size: "+str(self._V))
-        print("=============== Clusters =====================")
-        # print(self._clusters)
+        print("=============== InitialClusters =====================")
+        #print(self._clusters)
         print(self._flat)
-        # print(self._map)
    
         self._priors = self.prior()
-        print("=============== Probabilities =====================")
-        print("++++++Prior probability++++++:")
-        print(self._priors)
         self._trans = self.trans_prob()
-        print("++++++transition probability++++++:")
-        print(self._trans)
-        self._emis = self.emission_prob_all()    
-        print("++++++Emission probability++++++:")
-        print(self._emis)
-
+        self._emis = self.emission_prob_all()
 
     ############################################ Emission Probability for sentences  #####################################
     def emission_prob_all(self):
@@ -188,14 +189,14 @@ class ContentTagger():
             cache = dok_matrix((self._V+3, self._V+3))
 
             sents = self._clusters[si]
-            seqs = [word_tokenize(i) for i in sents]
-            bigram_seqs = [list(bigrams(j)) for j in seqs]
+            
+            #seqs = [word_tokenize(i) for i in sents]
+            bigram_seqs = [list(bigrams(j)) for j in sents]
+
             bigram_seq = [val for li in bigram_seqs for val in li if val[0]!= START_DOC]
             big_count_all = dict(Counter(bigram_seq)) #{('a', 'b'): 3, ('b', 'e'): 1, ('b', 'c'): 1, ('**start**', 'a'): 1, ('b', 'd'): 1}
-
             for tup in big_count_all:
-                if(tup[0] == END_SENT):
-                    print(tup)
+                if(tup[0] == END_SENT): 
                     continue
                 cache[self._map[tup[0]],self._map[tup[1]]] += big_count_all[tup]
             emis.append(cache)
@@ -204,7 +205,7 @@ class ContentTagger():
 
     def sent_logprob(self, sents_all):
         """
-        input a list of sentences, each sentence is a text string
+        input a list of sentences, each sentence is a list of words
         """
         cache = self._emis
         cache_max = np.zeros((self._V+3,self._V+3))
@@ -217,15 +218,20 @@ class ContentTagger():
         
         for j in range(len(sents_all)):
             seq = sents_all[j]
-            bigrams_seq = list(bigrams(word_tokenize(seq)))
+            bigrams_seq = list(bigrams(seq))
+            
             if bigrams_seq[0][0] == START_DOC:
                 bigrams_seq = bigrams_seq[1:]
             for bigr in bigrams_seq:
-                state_cache = [ci[self._map[bigr[0]],self._map[bigr[1]]] for ci in cache]
+                
+                w = bigr[0] if bigr[0] in self._vocab else UNK
+                w_prime = bigr[1] if bigr[1] in self._vocab else UNK
+
+                state_cache = [ci[self._map[w],self._map[w_prime]] for ci in cache]
                 state_cache = np.array(state_cache)
-                word_prob = self.cal_prob(state_cache, uni_cache[:,self._map[bigr[0]]])
+                word_prob = self.cal_prob(state_cache, uni_cache[:,self._map[w]])
                 emis_prob[:,j] += np.log(word_prob)
-                cache_max[self._map[bigr[0]],self._map[bigr[1]]] = max(np.max(word_prob), cache_max[self._map[bigr[0]],self._map[bigr[1]]])
+                cache_max[self._map[w],self._map[w_prime]] = max(np.max(word_prob), cache_max[self._map[w],self._map[w_prime]])
 
         # normalize
         # for i in range(self._m-1):
@@ -235,12 +241,13 @@ class ContentTagger():
         
         for j in range(len(sents_all)):
             seq = sents_all[j]
-            bigrams_seq = list(bigrams(word_tokenize(seq)))
+            #bigrams_seq = list(bigrams(word_tokenize(seq)))
+            bigrams_seq = list(bigrams(seq))
             if bigrams_seq[0][0] == START_DOC:
                 bigrams_seq = bigrams_seq[1:]
             for bigr in bigrams_seq:
-                numer = 1 - cache_max[self._map[bigr[0]],self._map[bigr[1]]]
-                denom = self._V - max_sum[self._map[bigr[0]]]
+                numer = 1 - cache_max[self._map[w],self._map[w_prime]]
+                denom = self._V - max_sum[self._map[w]]
                 emis_etc[j] += math.log(numer/denom)
         # emis_etc = emis_etc - logsumexp(emis_etc)
         
@@ -295,10 +302,12 @@ class ContentTagger():
         return: [0] a new arrangement of clusters
                 [1] a new flat clusters
         """
-        sents = [di for i in self._docs for di in i]
+        
         
         if docs:
             sents = [i for val in docs for i in val]
+        else:
+            sents = [di for i in self._docs for di in i]
         
         T = len(sents)
         N = self._m
@@ -340,6 +349,7 @@ class ContentTagger():
         out = []
         for i in range(N):
             tmp = [sents[j] for j in range(len(sents)) if sequence[j]==i]
+            # if tmp!=[]:
             out.append(tmp)
         
         return out, sequence
@@ -383,24 +393,19 @@ class ContentTagger():
 
             print(">>>> At Iteration "+str(iteration))
             print("current log P(E|theta) = "+str(log_prob))
-            # print("New emission log prob: ")
-            # print(self._emis)
-            # print("New transition log prob: ")
-            # print(self._trans)
-            print("Local flat cluster: ")
-            print(self._flat)
+            # print("Local flat cluster: ")
+            # print(self._flat)
 
             if iteration>0 and abs(log_prob - last_logprob) < converg_logprob:
                 converged = True
             iteration += 1
             last_logprob = log_prob
         print(">> Total iteration: "+str(iteration))
+        return log_prob
 
 
-    def adjust_tree(self, k, tree,T, delta_1 = None, delta_2 = None):
-        """
-        Given tree, k,T, adjust probabilities according to new cluster
-        """
+    def adjust_tree(self, k, tree,T, delta_1 = None, delta_2 = None): 
+        #Given tree, k,T, adjust probabilities according to new cluster 
         self._tree = tree
         flat_docs = [i for di in self._docs for i in di]
         cluster ,flat_c = make_clusters(flat_docs,self._tree, k)
@@ -415,46 +420,166 @@ class ContentTagger():
         self._trans = self.trans_prob()
         self._emis = self.emission_prob_all()
 
+    ############################################## Print Information ############################################
+    def print_info(self):
+        print("=============== Probabilities Info =====================")
+        print("++++ Most probable prior: +++++")
+        print(np.argmax(self._priors))
+        print("++++ Most probable Emission for every cluster: +++++")
+        max_emis = [si.tocsr().max() for si in self._emis]
+        max_index = [(int(i/(self._V+3)),int(i%(self._V+3))) for i in max_emis] # [k]=(i,j): most probable bigram is index i,j for cluster k
+        max_words = [(list(self._vocab)[i+3],list(self._vocab)[j+3]) for i,j in max_index]
+        print(max_words)
+        print("++++ Most probable Transition for all clusters: ++++")
+        print(np.argmax(self._trans, axis = 1))
 
 ############################################## Try hyperpara ############################################
 def hyper(tagger):
     """
-    return delta1, delta2, k, T, m as hyper parameter tested on development data
-    delta1 < 0.0000001, m = (32~95)
+    return delta1, delta2, k, T as hyper parameter tested on development data using grid search/ Sampling
     """
     tree = tagger._tree
     delta1,delta2,K,T,M = 0.0,0.0,0,0,0
     last_log = -np.inf
-    for k in range(30,100,2):
-        print("Setting t...")
-        for t in range(4,10,2):
-            print(" Setting delta_1...")
-            for delta_1 in np.arange(0.000001,0.00000001,-0.00000002):
-                print(" Setting delta_2...")
-                for delta_2 in np.arange(0.01,0.00001, -0.0005):
-                    tagger.adjust_tree(k, tree, t,delta_1,delta_2)
-                    alpha = tagger.forward_algo()
-                    log_prob = logsumexp(alpha[-1])
-                    if log_prob > last_log:
-                        delta1,delta2,K,T,M = delta_1, delta_2 , k, t, tagger._m
-                        print(">>Improve hyperparameter to: ",delta1,delta2,K,T,M)
-                        print("log probability ", log_prob)
-                        last_log = log_prob
-    print(">>>>>>Best hyperparameters: ",delta1,delta2,K,T,M)
-    return delta1,delta2,K,T,M
+    # Grid search
+    # for k in range(30,50,2): # 10
+    #     print("Setting t...")
+    #     for t in range(3,10,2): # 4
+    #         print(" Setting delta_1...")
+    #         for delta_1 in np.arange(1,0.00001,-0.2): #5
+    #             print(" Setting delta_2...")
+    #             for delta_2 in np.arange(1,0.00001, -0.2): #5
+    #                 tagger.adjust_tree(k, tree, t,delta_1,delta_2)
+    #                 print("Training model with hyper parameters ", delta_1, delta_2 , k, t)
+    #                 tagger.train_unsupervised()
+
+    #                 alpha = tagger.forward_algo()
+    #                 log_prob = logsumexp(alpha[-1])
+
+    #                 if log_prob > last_log:
+    #                     delta1,delta2,K,T = delta_1, delta_2 , k, t
+    #                     print(">>Improve hyperparameter to: ",delta1,delta2,K,T)
+    #                     print("log probability ", log_prob)
+    #                     last_log = log_prob
+
+    # Sampling 50 times
+    for i in range(50):
+        delta_1 = np.random.uniform(0.00001,1)
+        delta_2 = np.random.uniform(0.00001,1)
+        k = np.random.random_integers(25,50)
+        t = np.random.random_integers(3,10)
+        tagger.adjust_tree(k, tree, t,delta_1,delta_2)
+        print("Training model with hyper parameters ", delta_1, delta_2 , k, t)
+        log_prob = tagger.train_unsupervised()
+        if log_prob > last_log:
+            delta1,delta2,K,T = delta_1, delta_2 , k, t
+            print(">>Improve hyperparameter to: ",delta1,delta2,K,T)
+            print("log probability ", log_prob)
+            last_log = log_prob
+        
+    print(">>>>>>Best hyperparameters: ",delta1,delta2,K,T)
+    return delta1,delta2,K,T
 
 
 ########################################################################################################
-################################################## Testing  ############################################
+######################################### Group Input Test  ############################################
 ########################################################################################################
-if __name__ == '__main__':
+def group_files(start,end, threashold):
+    in_dir = '/home/ml/jliu164/corpus/nyt_corpus/data/'
+    dicts = {}
+    for i in range(start,end):
+        topic_dir = in_dir +str(i)+'/'
+        file_dir = str(i)+'content_annotated/'
+        # topics = os.walk(topic_dir).next()[2] # ["XXX.json","XXX.json",'XXX.txt']
+        topic = "topics_indexing_services.json"  # indexing_service.json
+        with open(topic_dir+topic) as data_file:
+            data = json.load(data_file)
+            keys = data.keys()
+            for key in keys:
+                files = data[key]
+                files = [file_dir+fpt for fpt in files] #[u'200Xcontent_annotated/XXXXXXX',...]
+                if(dicts.get(key)):
+                    lzt = dicts.get(key)
+                    lzt.extend(files)
+                    dicts[key] = lzt
+                else:
+                    dicts[key] = files
+    dicts = {k: v for k, v in dicts.items() if len(v) > threashold}
+    return dicts
+
+
+def save_input(start,end,threashold):
+    """
+    from year start to end, get all the documents and vocabularies stored by topic.
+    every file is [[[words]sentence]docs]
+    /home/ml/code/contentHMM_input
+    """
+    files = group_files(start,end,threashold)
+    root_dir = "/home/ml/jliu164/corpus/nyt_corpus/content_annotated/"
+    print({k:len(v) for k,v in files.items()})
+    for topic in files.keys():
+        print(" Processing topic: "+topic)
+        file_path = files[topic]
+        M = int(0.1*len(file_path))
+        # [0]: dev set;[ 1]:train set; [2]: test set
+        data_set = file_path[:M],file_path[M:-M],file_path[-M:]
+        
+        for i in range(3):
+            print(" Saving data set "+str(i))
+            docs= []
+            vocabs= set()
+            for f in data_set[i]:
+                path = root_dir + f + ".txt.xml"
+                doc,vocab = preprocess(path)
+                if doc!=[]:
+                    docs.append(doc)
+                vocabs = vocabs.union(vocab)
+            output = open("/home/ml/jliu164/code/contentHMM_input/"+topic+str(i)+'.pkl','wb')
+            pickle.dump((docs,vocabs),output)
+            print(" All {} articles saved! " .format(len(docs)))
+            output.close()
+
+def test(topic):
+    docs,vocab = pickle.load(open(topic+'2.pkl','rb'))
+    print("======= Loading Tagger ======== ")
+    delta_1, delta_2, k, T = 0.001, 0.2, 40, 4
+    myTagger = pickle.load(open("topic taggers.pkl","rb"))
+
+    # print("========Testing Viterbi==========")
+    # test_doc,vocab = pickle.load(open(topic+'0.pkl','rb'))
+    # v,f = myTagger.viterbi(test_doc)
+    # print(f)
+
+    print("======= Finding Hyper parameters ======== ")
+    delta_1, delta_2, k, T = hyper(myTagger)
+
+    print("====== Training with hyper-parameters ============")
+    myTagger2 = ContentTagger(docs,vocab,k,delta_1,delta_2,T)
+    myTagger2.train_unsupervised()
+    myTagger2.print_info()
+    f = open("topic taggers.pkl",'a')
+    pickle.dump(myTagger2,f)
+    f.close()
+
+
+def train_all():
+    """
+    Train taggers on all topics and store the tagger in: /home/ml/jliu164/code/HMMtaggers
+    Output the info about the tagger in: /home/ml/jliu164/code/HMMtaggersInfo
+    """
+
+
+
+
+
+# if __name__ == '__main__':
     # import json
     # root_dir = "/Users/liujingyun/Desktop/NLP/nyt_corpus/data/2006content/"
     # docs = []
     # topic_file = "/Users/liujingyun/Desktop/NLP/nyt_corpus/data/2006topics_indexing_services.json"
     # with open(topic_file) as data_file:
     #     topics = json.load(data_file)
-    # files = topics["Computers and the Internet"]
+    # files = topics["Books and Literature"]
     # for name in files:
     #     try:
     #         f = open(root_dir+name+".txt")
@@ -483,11 +608,12 @@ if __name__ == '__main__':
 
     # test = ["So how about this ohhhh whaaa? This is a big foo bar right, is a. This is a large apple bar right.\
     # That must be something else right.","That ohhhh whaaa be something else right. This is a foo bar again right. is a"]
-    # myTagger = ContentTagger(test, 3,1,1,3)
+    # myTagger = ContentTagger(docs,vocab, 3,1,1,3)
     # test_list = [val for i in myTagger._docs for val in i]
+    # sent_all = [val for doc in docs for val in doc]
 
     # print("========Testing Sentence prob ==========")
-    # sent = myTagger.sent_logprob(test_list)
+    # sent = myTagger.sent_logprob(sent_all)
     # print(sent)
     
     # print("========Testing Viterbi==========")
@@ -500,18 +626,6 @@ if __name__ == '__main__':
 
     # print("========Testing Training ==========")
     # myTagger.train_unsupervised()
-    # v,f = myTagger.viterbi(test_flat)
     # print("Final Clusters and flat: ")
     # print(myTagger._clusters)
     # print(myTagger._flat)
-
-
-
-
-
-
-
-
-    
-
-

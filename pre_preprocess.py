@@ -237,7 +237,7 @@ def test():
 	in_dir_2006 = '/Users/liujingyun/Desktop/NLP/nyt_corpus/data/2006'
 	in_dir_200702 = '/Users/liujingyun/Desktop/NLP/nyt_corpus/data/2007/02'
 	tag_path = "/Users/liujingyun/Desktop/NLP/nyt_corpus/data/2006/01/02/1729112.xml"
-	extractall(in_dir_2006)
+	#extractall(in_dir_2006)
 	# thread1 = myThreads(in_dir_200701,"0701")
 	# thread2 = myThreads(in_dir_200702,"0702")
 	# thread1.start()
@@ -248,9 +248,9 @@ def test():
 
 	
 	#test annotate_all
-	in_dir = '/Users/liujingyun/Desktop/NLP/nyt_corpus/data/2007content'
-	out_dir = '/Users/liujingyun/Desktop/NLP/nyt_corpus/summary_annotated'
-	#annotate_all(in_dir, out_dir)
+	in_dir = '/Users/liujingyun/Desktop/NLP/nyt_corpus/data/1987/01'
+	out_dir = '/Users/liujingyun/Desktop/NLP/nyt_corpus/content_annotated'
+	annotate_all(in_dir, out_dir)
 
 	for i in range(1987,2008):
 		in_path = '/Users/liujingyun/Desktop/NLP/nyt_corpus/data/'+str(i)+'content'
