@@ -10,7 +10,7 @@ from scipy.sparse import dok_matrix
 #import matplotlib.pyplot as plt
 
 
-punctuation = set([',',':','.','(',')','`','\'','$','\"',"CD"])
+
 START_SENT = "**START_SENT**"
 START_DOC = "**START_DOC**"
 END_SENT = "**END_SENT**"
@@ -261,8 +261,7 @@ class ContentTagger():
         docs: a list of articles, each article is a list of sentences
         return: [0] a new arrangement of clusters
                 [1] a new flat clusters
-        """
-        
+        """     
         
         if docs:
             sents = [i for val in docs for i in val]
@@ -383,11 +382,12 @@ class ContentTagger():
     ############################################## Print Information ############################################
     def print_info(self):
         print("=============== Probabilities Info =====================")
+        print("Total clusters:"+str(self._m))
         print("++++++ Most probable prior: +++++++")
         print(np.argmax(self._priors))
         print("++++++ Most probable Emission for every cluster( etcetera excluded): ++++++")
-        max_emis = [si.tocsr().argmax() for si in self._emis]
-        max_index = [(int(i/(self._V+3)),int(i%(self._V+3))) for i in max_emis] # [k]=(i,j): most probable bigram is index i,j for cluster k
+        max_emis = [si.tocsr().toarray().argmax() for si in self._emis]
+        max_index = [divmod(i,self._V+3) for i in max_emis] # [k]=(i,j): most probable bigram is index i,j for cluster k
         max_words = [(self._map.keys()[self._map.values().index(i)],self._map.keys()[self._map.values().index(j)]) for i,j in max_index]
         print(max_words)
         print("++++++ Most probable Transition for all clusters: ++++++")
@@ -425,18 +425,17 @@ def hyper(tagger):
 
     # Sampling 50 times
     for i in range(30):
-        print("++++++++++++++ Sampling #"+str(i))
+        print("++++++++++++++ Sampling #"+str(i)+"+++++++++++++++")
         delta_1 = np.random.uniform(0.00001,1)
         delta_2 = np.random.uniform(0.00001,1)
         k = np.random.random_integers(25,50)
         t = np.random.random_integers(3,10)
         tagger.adjust_tree(k, tree, t,delta_1,delta_2)
-        print("Training model with hyper parameters ", delta_1, delta_2 , k, t)
+        print(" Training model with hyper parameters ", delta_1, delta_2 , k, t)
         log_prob = tagger.train_unsupervised()
         if log_prob > last_log:
             delta1,delta2,K,T = delta_1, delta_2 , k, t
-            print(">>Improve hyperparameter to: ",delta1,delta2,K,T)
-            print("log probability ", log_prob)
+            print(">>>>Improve hyperparameter to: ",delta1,delta2,K,T)
             last_log = log_prob
         
     print(">>>>>>Best hyperparameters: ",delta1,delta2,K,T)

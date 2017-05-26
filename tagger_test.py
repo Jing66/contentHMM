@@ -4,9 +4,15 @@ import random
 import os
 import re
 import json
+import time
 
 from content_hmm import *
 
+punctuation = set([',','"',"'",'.',])
+input_dir = '/home/ml/jliu164/code/contentHMM_input/contents/'
+tagger_dir = '/home/ml/jliu164/code/contentHMM_tagger/contents/'
+root_dir = "/home/ml/jliu164/corpus/nyt_corpus/content_annotated/"
+para_path = '/home/ml/jliu164/code/contentHMM_tagger/hyper-para.txt'
 ########################################################################################################
 ######################################### Group Input Test  ############################################
 ########################################################################################################
@@ -29,7 +35,13 @@ def preprocess(file_path):
     annotated_text = A(xml)
     for sentence in annotated_text.sentences:
         tokens = sentence['tokens']
-        tokens = [i['lemma'].lower() if i['pos'] not in punctuation else numfy(i['lemma']) for i in tokens]
+        tokens = [numfy(i['lemma']).lower() for i in tokens if i['lemma'].isalpha()]
+        # tokens = []
+        # for i in tokens:
+        #     if i['pos'] == 'CD':
+        #         tokens.append(numfy(i['lemma']))
+        #     elif i['pos'] not in punctuation:
+        #         tokens.append(i['lemma'].lower())
         vocab = vocab.union(set(tokens))
         tokens.insert(0,START_SENT)
         tokens.append(END_SENT) 
@@ -78,11 +90,10 @@ def save_input(start,end,low,high):
     /home/ml/code/contentHMM_input
     """
     files = group_files(start,end,low,high)
-    root_dir = "/home/ml/jliu164/corpus/nyt_corpus/content_annotated/"
     print({k:len(v) for k,v in files.items()})
     for topic in files.keys():
         print(" Processing topic: "+topic)
-        subdir = "/home/ml/jliu164/code/contentHMM_input/"+topic+'/'
+        subdir = input_dir +topic+'/'
         if not os.path.exists(subdir):
             os.makedirs(subdir)
         else:
@@ -107,21 +118,21 @@ def save_input(start,end,low,high):
             print(" All {} articles saved! " .format(len(docs)))
             output.close()
 
-def train_single(dev_path, train_path):
+def train_single(dev_path, train_path,topic):
     try:
         docs_dev,vocab_dev = pickle.load(open(dev_path,'rb'))
     except:
         print("Cannot load input develop set: "+dev_path)
         return None
     delta_1, delta_2, k, T = 0.001, 0.2, 40, 4
-    
     myTagger = ContentTagger(docs_dev,vocab_dev, k, delta_1, delta_2, T)
-    
-
-    print("======= Finding Hyper parameters ======== ")
     delta_1, delta_2, k, T = hyper(myTagger)
 
-    print("====== Training with hyper-parameters ============")
+    print("====== Training.... ============ delta 1, delta 2, k, T:")
+    print(delta_1,delta_2,k,T)
+    para = {topic:(delta_1,delta_2,k,T)}
+    with open(para_path,'a') as f:
+        f.write(str(para)+'\n')
     try:
         docs_train, vocab_train = pickle.load(open(train_path,'rb'))
     except:
@@ -137,11 +148,10 @@ def train_all():
     """
     Train taggers on all topics and store the tagger in: /home/ml/jliu164/code/contentHMM_tagger/
     """
-    input_dir = '/home/ml/jliu164/code/contentHMM_input/'
-    tagger_dir = '/home/ml/jliu164/code/contentHMM_tagger/'
     inputs = os.listdir(input_dir)
     # get all topics data input
     for topic in inputs:
+        start_time = time.time()
         # skip the trained models
         if os.path.exists(tagger_dir+topic+".pkl"):
             continue
@@ -151,30 +161,76 @@ def train_all():
         dev_path = input_dir+topic+'/'+topic+'0.pkl'
         train_path = input_dir+topic+'/'+topic+"1.pkl"
         test_path = input_dir+topic+'/'+topic+'2.pkl'
-        myTagger = train_single(dev_path,train_path)
+        myTagger = train_single(dev_path,train_path,topic)
         
         # save the tagger
         if myTagger:
             pickle.dump(myTagger, open(tagger_dir+topic+'.pkl','wb'))
+            dur = time.time() - start_time
+            hours, rem = divmod(dur, 3600)
+            minutes, seconds = divmod(rem, 60)
+            print("Model trained in {} hours, {} minutes, {} seconds".format(int(hours),int(minutes),int(seconds)))
+            print
 
 
 ########################################################################################################
 ######################################### Permutation Test  ############################################
 ########################################################################################################
-def permutation_test(tagger, test_path):
+def permutation_test_single(tagger, test_doc, num):
     """
-    Given a tagger, test on test set and the permutation of test set
+    Given a tagger, test on a document/article
     """
-    doc, vocab = pickle.load(open(test_path))
-    alpha = tagger.forward_algo(doc)
+    alpha = tagger.forward_algo(test_doc)
     logprob = logsumexp(alpha[-1])
     mistake = 0
-    for i in range(10):
+    for i in range(num):
         # shuffle doc, shuffle sentence in doc
-        np.random.shuffle(doc)
-        [np.random.shuffle(i) for i in doc]
-        perm_logprob = tagger.viterbi(doc)
+        np.random.shuffle(test_doc)   
+        perm_logprob = tagger.viterbi(test_doc)
         if logprob < perm_logprob:
             mistake +=1
-    print("Out of 10 permutation, recall is "+str(mistake))
+    print("Out of 15 permutation, recall is "+str(mistake))
+    return float(mistake/num)
+
+def permutation_test(num):
+    inputs = os.listdir(input_dir)
+    taggers = os.listdir(tagger_dir)
+    for topic in inputs:
+
+        print("=============================================================")
+        print("Testing the model for topic "+topic)
+        print("=============================================================")
+        test_path = input_dir+topic+'/'+topic+'2.pkl'
+        try:
+            test_docs,vocabs = pickle.load(open(test_path))
+        except:
+            print("Test files not available!")
+            continue
+
+        try:
+            myTagger = pickle.load(open(tagger_dir+topic+'.pkl'))
+        except:
+            print(" Model isn't available!")
+            continue
+
+        for doc in test_docs:
+            precision = permutation_test_single(myTagger, [doc], num)
+        
+
+
+
+
+
+if __name__ == '__main__':
+    train_all()
+    # f = "/home/ml/jliu164/corpus/nyt_corpus/content_annotated/2002content_annotated/1355806.txt.xml"
+    # doc,vocab = preprocess(f)
+    # print("." in vocab)
+    # print("'" in vocab)
+    # print(":" in vocab)
+    # print("," in vocab)
+    # print("''" in vocab)    
+
+
+
 
