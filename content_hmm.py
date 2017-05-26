@@ -2,16 +2,13 @@
 from nltk import bigrams
 import math
 import numpy as np
-import os
-import re
-import json
+
 import scipy.cluster.hierarchy as hac
 from collections import Counter
 from scipy.misc import comb
 from scipy.sparse import dok_matrix
 #import matplotlib.pyplot as plt
-from corenlpy import AnnotatedText as A
-import pickle
+
 
 punctuation = set([',',':','.','(',')','`','\'','$','\"',"CD"])
 START_SENT = "**START_SENT**"
@@ -40,7 +37,7 @@ def make_cluster_tree(text_seq):
     return linkage
     """
     # generate condensed distance matrix
-    print("Clustering "+str(len(text_seq))+" sentences...")
+    #print("Clustering "+str(len(text_seq))+" sentences...")
     N = len(text_seq)
     #dicts = [word_tokenize(i) for i in text_seq]
     dicts = text_seq
@@ -96,40 +93,6 @@ def filter_etc(clustered_text, flat, T):
     return out, flat_out
 
 
-def preprocess(file_path):
-    """
-    insert **START_DOC** before the start of each article; **START/END_SENT** before the start/end of each sentence;
-    remove punctuation; replace numbers with 5, #digits are the same
-    input a file directory
-    return [0]: a document, in the form of a list of sentences
-            [1]: a set of all vocabulary
-    """
-    docs = []
-    vocab = set()
-    try:
-        xml = open(file_path).read()
-    except:
-        print("Cannot Open File "+file_path)
-        return docs,vocab
-    annotated_text = A(xml)
-    for sentence in annotated_text.sentences:
-        tokens = sentence['tokens']
-        tokens = [i['lemma'].lower() if i['pos'] not in punctuation else numfy(i['lemma']) for i in tokens]
-        vocab = vocab.union(set(tokens))
-        tokens.insert(0,START_SENT)
-        tokens.append(END_SENT) 
-        docs.append(tokens)
-    
-    docs[0] = [START_DOC]+docs[0]   #['**START_DOC**', '**START_SENT**', u'the', u'head', u'of', u'the', u'united', u'nations', u'election', u'agency', u'say', u'sunday', u'that', u'she', u'would', u'resist', u'a', u'report', u'action', u'to', u'oust', u'she', u'from', u'she', u'position', u',', u'a', u'move', u'that', u'would', u'come', u'a', u'week', u'before', u'crucial', u'election', u'she', u'office', u'be', u'oversee', u'in', u'iraq.secretary', u'general', u'kofi', u'annan', u'plan', u'to', u'deliver', u'a', u'dismissal', u'letter', u'to', u'carina', u'perelli', u',', u'head', u'of', u'the', u'united', u'nations', u"'", u'electoral', u'assistance', u'division', u',', u'the', u'associated', u'press', u'report', u'and', u'two', u'united', u'nations', u'official', u'confirm', u'.', '**END_SENT**']]
-    return docs, vocab
-
-
-def numfy(word):
-    if not bool(re.search(r'\d', word)):
-        return word
-    else:
-        return re.sub(r'[0-9]','5',word)
-
 def logsumexp(arr): 
     max_ = arr.max()
     return np.log(np.sum(np.exp(arr - max_))) + max_
@@ -146,8 +109,7 @@ class ContentTagger():
         flat_docs = [i for di in self._docs for i in di]
 
         
-        self._tree = make_cluster_tree(flat_docs)
-    
+        self._tree = make_cluster_tree(flat_docs)  
         # print the linkage tree
         # plt.figure()
         # dn = hac.dendrogram(self._tree)
@@ -157,10 +119,8 @@ class ContentTagger():
         # self._clusters is a list of clusters, each containing a list of sentences, each containing a list of words
         self._clusters,self._flat = filter_etc(cluster,flat_c, T) 
         
-        self._m = len(self._clusters)
-
-        self._vocab = vocab
-
+        self._m = len(self._clusters) # cluster[m-1] is the etc cluster
+        self._vocab = vocab # vocab doesn't contain START/END
         self._V = len(self._vocab)
 
         # map all words into string from 1 to |V|+1. #0 is for START_SENT
@@ -172,9 +132,9 @@ class ContentTagger():
         print("After filter, total #cluster: "+str(self._m))
         # print(self._vocab)
         print("Vocabulary size: "+str(self._V))
-        print("=============== InitialClusters =====================")
+        print("=============== Initializing Clusters =====================")
         #print(self._clusters)
-        print(self._flat)
+        #print(self._flat)
    
         self._priors = self.prior()
         self._trans = self.trans_prob()
@@ -423,15 +383,16 @@ class ContentTagger():
     ############################################## Print Information ############################################
     def print_info(self):
         print("=============== Probabilities Info =====================")
-        print("++++ Most probable prior: +++++")
+        print("++++++ Most probable prior: +++++++")
         print(np.argmax(self._priors))
-        print("++++ Most probable Emission for every cluster: +++++")
-        max_emis = [si.tocsr().max() for si in self._emis]
+        print("++++++ Most probable Emission for every cluster( etcetera excluded): ++++++")
+        max_emis = [si.tocsr().argmax() for si in self._emis]
         max_index = [(int(i/(self._V+3)),int(i%(self._V+3))) for i in max_emis] # [k]=(i,j): most probable bigram is index i,j for cluster k
-        max_words = [(list(self._vocab)[i+3],list(self._vocab)[j+3]) for i,j in max_index]
+        max_words = [(self._map.keys()[self._map.values().index(i)],self._map.keys()[self._map.values().index(j)]) for i,j in max_index]
         print(max_words)
-        print("++++ Most probable Transition for all clusters: ++++")
+        print("++++++ Most probable Transition for all clusters: ++++++")
         print(np.argmax(self._trans, axis = 1))
+
 
 ############################################## Try hyperpara ############################################
 def hyper(tagger):
@@ -463,7 +424,8 @@ def hyper(tagger):
     #                     last_log = log_prob
 
     # Sampling 50 times
-    for i in range(50):
+    for i in range(30):
+        print("++++++++++++++ Sampling #"+str(i))
         delta_1 = np.random.uniform(0.00001,1)
         delta_2 = np.random.uniform(0.00001,1)
         k = np.random.random_integers(25,50)
@@ -481,98 +443,10 @@ def hyper(tagger):
     return delta1,delta2,K,T
 
 
-########################################################################################################
-######################################### Group Input Test  ############################################
-########################################################################################################
-def group_files(start,end, threashold):
-    in_dir = '/home/ml/jliu164/corpus/nyt_corpus/data/'
-    dicts = {}
-    for i in range(start,end):
-        topic_dir = in_dir +str(i)+'/'
-        file_dir = str(i)+'content_annotated/'
-        # topics = os.walk(topic_dir).next()[2] # ["XXX.json","XXX.json",'XXX.txt']
-        topic = "topics_indexing_services.json"  # indexing_service.json
-        with open(topic_dir+topic) as data_file:
-            data = json.load(data_file)
-            keys = data.keys()
-            for key in keys:
-                files = data[key]
-                files = [file_dir+fpt for fpt in files] #[u'200Xcontent_annotated/XXXXXXX',...]
-                if(dicts.get(key)):
-                    lzt = dicts.get(key)
-                    lzt.extend(files)
-                    dicts[key] = lzt
-                else:
-                    dicts[key] = files
-    dicts = {k: v for k, v in dicts.items() if len(v) > threashold}
-    return dicts
 
 
-def save_input(start,end,threashold):
-    """
-    from year start to end, get all the documents and vocabularies stored by topic.
-    every file is [[[words]sentence]docs]
-    /home/ml/code/contentHMM_input
-    """
-    files = group_files(start,end,threashold)
-    root_dir = "/home/ml/jliu164/corpus/nyt_corpus/content_annotated/"
-    print({k:len(v) for k,v in files.items()})
-    for topic in files.keys():
-        print(" Processing topic: "+topic)
-        file_path = files[topic]
-        M = int(0.1*len(file_path))
-        # [0]: dev set;[ 1]:train set; [2]: test set
-        data_set = file_path[:M],file_path[M:-M],file_path[-M:]
-        
-        for i in range(3):
-            print(" Saving data set "+str(i))
-            docs= []
-            vocabs= set()
-            for f in data_set[i]:
-                path = root_dir + f + ".txt.xml"
-                doc,vocab = preprocess(path)
-                if doc!=[]:
-                    docs.append(doc)
-                vocabs = vocabs.union(vocab)
-            output = open("/home/ml/jliu164/code/contentHMM_input/"+topic+str(i)+'.pkl','wb')
-            pickle.dump((docs,vocabs),output)
-            print(" All {} articles saved! " .format(len(docs)))
-            output.close()
-
-def test(topic):
-    docs,vocab = pickle.load(open(topic+'2.pkl','rb'))
-    print("======= Loading Tagger ======== ")
-    delta_1, delta_2, k, T = 0.001, 0.2, 40, 4
-    myTagger = pickle.load(open("topic taggers.pkl","rb"))
-
-    # print("========Testing Viterbi==========")
-    # test_doc,vocab = pickle.load(open(topic+'0.pkl','rb'))
-    # v,f = myTagger.viterbi(test_doc)
-    # print(f)
-
-    print("======= Finding Hyper parameters ======== ")
-    delta_1, delta_2, k, T = hyper(myTagger)
-
-    print("====== Training with hyper-parameters ============")
-    myTagger2 = ContentTagger(docs,vocab,k,delta_1,delta_2,T)
-    myTagger2.train_unsupervised()
-    myTagger2.print_info()
-    f = open("topic taggers.pkl",'a')
-    pickle.dump(myTagger2,f)
-    f.close()
-
-
-def train_all():
-    """
-    Train taggers on all topics and store the tagger in: /home/ml/jliu164/code/HMMtaggers
-    Output the info about the tagger in: /home/ml/jliu164/code/HMMtaggersInfo
-    """
-
-
-
-
-
-# if __name__ == '__main__':
+if __name__ == '__main__':
+   # train_all()
     # import json
     # root_dir = "/Users/liujingyun/Desktop/NLP/nyt_corpus/data/2006content/"
     # docs = []
@@ -606,9 +480,21 @@ def train_all():
     # v ,f= myTagger.viterbi(myTagger._docs)
     # print(f)
 
-    # test = ["So how about this ohhhh whaaa? This is a big foo bar right, is a. This is a large apple bar right.\
-    # That must be something else right.","That ohhhh whaaa be something else right. This is a foo bar again right. is a"]
-    # myTagger = ContentTagger(docs,vocab, 3,1,1,3)
+    from nltk import word_tokenize,sent_tokenize
+    test = ["So how about this ohhhh whaaa? This is a big foo bar right, is a. This is a large apple bar right.\
+    That must be something else right.","That can't ohhhh whaaa be something else right. This is a foo bar again right. is a"]
+    
+    docs = [[['**START_DOC**','**START_SENT**', 'so', 'how', 'about', 'this', 'one', 'ohhhh', 'whaaa', '**END_SENT**'],\
+    [ '**START_SENT**', 'this', 'is', 'a', 'big', 'foo', 'bar', 'right', 'is', 'a', '**END_SENT**'], \
+    ['**START_SENT**', 'this', 'is', 'a', 'large', 'apple', 'bar', 'right', '**END_SENT**'], \
+    ['**START_SENT**', 'that', 'must', 'be', 'something', 'else', 'right', '**END_SENT**']], \
+    [['**START_DOC**', '**START_SENT**', 'that', 'ca', "n't", 'ohhhh', 'whaaa', 'be', 'something', 'else', 'right', '**END_SENT**'],
+    ['**START_SENT**', 'this', 'is', 'a', 'foo', 'bar', 'again', 'right', '**END_SENT**'],\
+     ['**START_SENT**', 'is', 'a', '**END_SENT**']]]
+
+    vocab = set(['right', 'apple', 'is', 'one', 'something', 'ohhhh', 'again', 'large', 'how', 'foo', 'ca',  'be', 'that', 'big', 'else', 'must', 'a', 'about', 'bar', 'this', 'whaaa', "n't", 'so'])
+    myTagger = ContentTagger(docs,vocab, 3,1,1,3)
+    myTagger.print_info()
     # test_list = [val for i in myTagger._docs for val in i]
     # sent_all = [val for doc in docs for val in doc]
 
