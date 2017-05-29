@@ -189,13 +189,14 @@ def permutation_test_single(tagger, test_doc, num):
         # print("After shuffle the log prob is:"+str(perm_logprob))
         if logprob < perm_logprob:
             mistake +=1
-    print("Out of 15 permutation, #better permutation: "+str(mistake))
-    return float(mistake/num)
+    print("Out of {} permutation, #better permutation: {} ".format(str(num),str(mistake)))
+    return mistake
 
 
-def permutation_test(num):
+def permutation_test(test_num):
     inputs = os.listdir(input_dir)
     taggers = os.listdir(tagger_dir)
+    mistake = 0
     for topic in inputs:
 
         print("=============================================================")
@@ -215,7 +216,9 @@ def permutation_test(num):
             continue
 
         for doc in test_docs:
-            precision = permutation_test_single(myTagger, [doc], num)
+            mistake += permutation_test_single(myTagger, doc, test_num)
+        print("For topic "+topic+", mistake rate is" + str(float(mistake)/(len(test_docs*test_num))))
+
         
 
 
@@ -235,16 +238,9 @@ if __name__ == '__main__':
     # tagger = pickle.load(open('contentHMM_tagger/Teachers and School Employees.pkl'))
     # permutation_test_single(tagger,docs[0],20)
 
-    train_all()
+    # train_all()
 
-    # f = "/home/ml/jliu164/corpus/nyt_corpus/content_annotated/2002content_annotated/1355806.txt.xml"
-    # doc,vocab = preprocess(f)
-    # print("." in vocab)
-    # print("'" in vocab)
-    # print(":" in vocab)
-    # print("," in vocab)
-    # print("''" in vocab)    
-
-
-
-
+    dev_path = 'contentHMM_input/contents/News and News Media/News and News Media0.pkl'
+    train_path = 'contentHMM_input/contents/News and News Media/News and News Media1.pkl'
+    tag = train_single(dev_path,train_path,"MondayAfternoon2")
+    pickle.dump(tag,open("News random.pkl",'wb'))

@@ -9,8 +9,9 @@ from scipy.misc import comb
 from scipy.sparse import dok_matrix
 #import matplotlib.pyplot as plt
 
+from nltk.corpus import stopwords
 
-
+STOPWORDS = set(stopwords.words('english'))
 START_SENT = "**START_SENT**"
 START_DOC = "**START_DOC**"
 END_SENT = "**END_SENT**"
@@ -256,17 +257,19 @@ class ContentTagger():
 
     ############################################ Forward/Backword/Viterbi###################################
     
-    def viterbi(self,docs=None):
+    def viterbi(self,docs=None, flat = False):
         """
         docs: a list of articles, each article is a list of sentences
         return: [0] a new arrangement of clusters
                 [1] a new flat clusters
         """     
         
-        if docs:
+        if docs and not flat:
             sents = [i for val in docs for i in val]
-        else:
+        elif not docs and not flat:
             sents = [di for i in self._docs for di in i]
+        else:
+            sents = docs
         
         T = len(sents)
         N = self._m
@@ -314,10 +317,14 @@ class ContentTagger():
         return out, sequence
 
 
-    def forward_algo(self,docs = None):
-        sents = [di for i in self._docs for di in i] # All sentences in docs: ['a b c', 'a b d', 'a b e', 'c f g', 'y,r,z']
-        if docs:
+    def forward_algo(self,docs = None, flat = False):
+        if docs and not flat:
             sents = [i for val in docs for i in val]
+        elif not docs and not flat:
+            sents = [di for i in self._docs for di in i]
+        else:
+            sents = docs
+
         T = len(sents)
         alpha = np.zeros((T, self._m)) # [t,i]: P(E_1:t, X_t = i)
         output_logprob = self.sent_logprob(sents)
@@ -333,7 +340,7 @@ class ContentTagger():
         return alpha #doesn't calculate P(E|theta): last step
 
     ############################################## Train model ############################################
-    def train_unsupervised(self, max_inter = 100, converg_logprob = 1e-8):
+    def train_unsupervised(self, max_inter = 30, converg_logprob = 1e-8):
         converged = False
         iteration= 0
         log_prob = 0.0
@@ -423,12 +430,16 @@ def hyper(tagger):
     #                     print("log probability ", log_prob)
     #                     last_log = log_prob
 
-    delta_1 = np.random.uniform(0.00001,1)
-    delta_2 = np.random.uniform(0.00001,1)
-    k = np.random.random_integers(25,50)
-    t = np.random.random_integers(3,10)
+    # delta_1 = np.random.uniform(0.00001,1)
+    # delta_2 = np.random.uniform(0.00001,1)
+    # k = np.random.random_integers(25,50)
+    # t = np.random.random_integers(3,10)
     # Sampling 30 times
     for i in range(30):
+        delta_1 = np.random.uniform(0.00001,1)
+        delta_2 = np.random.uniform(0.00001,1)
+        k = np.random.random_integers(25,50)
+        t = np.random.random_integers(3,10)
         print("++++++++++++++ Sampling #"+str(i)+"+++++++++++++++")
         
         tagger.adjust_tree(k, tree, t,delta_1,delta_2)
@@ -439,14 +450,14 @@ def hyper(tagger):
             print(">>>>Improve hyperparameter to: ",delta1,delta2,K,T)
             last_log = log_prob
 
-        delta_1 = delta_1 + np.random.uniform(-0.1,0.1)
-        delta_1 = max(0.0001,delta_1)
-        delta_2 =  delta_2 + np.random.uniform(-0.1,0.1)
-        delta_2 = max(0.0001,delta_2)
-        k = k + np.random.random_integers(-5,5)
-        t = t + np.random.random_integers(-1,2)
-        k = max(25,k)
-        t = max(3,t)
+        # delta_1 = delta_1 + np.random.uniform(-0.1,0.1)
+        # delta_1 = max(0.0001,delta_1)
+        # delta_2 =  delta_2 + np.random.uniform(-0.1,0.1)
+        # delta_2 = max(0.0001,delta_2)
+        # k = k + np.random.random_integers(-5,5)
+        # t = t + np.random.random_integers(-1,2)
+        # k = max(25,k)
+        # t = max(3,t)
     print(">>>>>>Best hyperparameters: ",delta1,delta2,K,T)
     return delta1,delta2,K,T
 
