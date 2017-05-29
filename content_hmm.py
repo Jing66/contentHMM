@@ -423,13 +423,14 @@ def hyper(tagger):
     #                     print("log probability ", log_prob)
     #                     last_log = log_prob
 
-    # Sampling 50 times
+    delta_1 = np.random.uniform(0.00001,1)
+    delta_2 = np.random.uniform(0.00001,1)
+    k = np.random.random_integers(25,50)
+    t = np.random.random_integers(3,10)
+    # Sampling 30 times
     for i in range(30):
         print("++++++++++++++ Sampling #"+str(i)+"+++++++++++++++")
-        delta_1 = np.random.uniform(0.00001,1)
-        delta_2 = np.random.uniform(0.00001,1)
-        k = np.random.random_integers(25,50)
-        t = np.random.random_integers(3,10)
+        
         tagger.adjust_tree(k, tree, t,delta_1,delta_2)
         print(" Training model with hyper parameters ", delta_1, delta_2 , k, t)
         log_prob = tagger.train_unsupervised()
@@ -437,7 +438,15 @@ def hyper(tagger):
             delta1,delta2,K,T = delta_1, delta_2 , k, t
             print(">>>>Improve hyperparameter to: ",delta1,delta2,K,T)
             last_log = log_prob
-        
+
+        delta_1 = delta_1 + np.random.uniform(-0.1,0.1)
+        delta_1 = max(0.0001,delta_1)
+        delta_2 =  delta_2 + np.random.uniform(-0.1,0.1)
+        delta_2 = max(0.0001,delta_2)
+        k = k + np.random.random_integers(-5,5)
+        t = t + np.random.random_integers(-1,2)
+        k = max(25,k)
+        t = max(3,t)
     print(">>>>>>Best hyperparameters: ",delta1,delta2,K,T)
     return delta1,delta2,K,T
 

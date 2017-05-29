@@ -8,11 +8,10 @@ import time
 
 from content_hmm import *
 
-punctuation = set([',','"',"'",'.',])
-input_dir = '/home/ml/jliu164/code/contentHMM_input/contents/'
-tagger_dir = '/home/ml/jliu164/code/contentHMM_tagger/contents/'
-root_dir = "/home/ml/jliu164/corpus/nyt_corpus/content_annotated/"
-para_path = '/home/ml/jliu164/code/contentHMM_tagger/hyper-para.txt'
+input_dir = '/home/ml/jliu164/code/contentHMM_input/summaries/'
+tagger_dir = '/home/ml/jliu164/code/contentHMM_tagger/summaries/'
+root_dir = "/home/ml/jliu164/corpus/nyt_corpus/summary_annotated/"
+para_path = tagger_dir+'hyper-para.txt'
 ########################################################################################################
 ######################################### Group Input Test  ############################################
 ########################################################################################################
@@ -35,13 +34,8 @@ def preprocess(file_path):
     annotated_text = A(xml)
     for sentence in annotated_text.sentences:
         tokens = sentence['tokens']
-        tokens = [numfy(i['lemma']).lower() for i in tokens if i['lemma'].isalpha()]
-        # tokens = []
-        # for i in tokens:
-        #     if i['pos'] == 'CD':
-        #         tokens.append(numfy(i['lemma']))
-        #     elif i['pos'] not in punctuation:
-        #         tokens.append(i['lemma'].lower())
+        tokens = [numfy(i['lemma']) for i in tokens if i['word'].isalpha() and i['lemma'].isalpha() and not i['lemma'].lower() in STOPWORDS]
+       
         vocab = vocab.union(set(tokens))
         tokens.insert(0,START_SENT)
         tokens.append(END_SENT) 
@@ -161,6 +155,7 @@ def train_all():
         dev_path = input_dir+topic+'/'+topic+'0.pkl'
         train_path = input_dir+topic+'/'+topic+"1.pkl"
         test_path = input_dir+topic+'/'+topic+'2.pkl'
+
         myTagger = train_single(dev_path,train_path,topic)
         
         # save the tagger
@@ -180,17 +175,23 @@ def permutation_test_single(tagger, test_doc, num):
     """
     Given a tagger, test on a document/article
     """
-    alpha = tagger.forward_algo(test_doc)
+    alpha = tagger.forward_algo(test_doc, flat=True)
     logprob = logsumexp(alpha[-1])
-    mistake = 0
+    # print("Original logprob: "+str(logprob))
+    mistake = 0 
     for i in range(num):
         # shuffle doc, shuffle sentence in doc
-        np.random.shuffle(test_doc)   
-        perm_logprob = tagger.viterbi(test_doc)
+        
+        np.random.shuffle(test_doc)
+        
+        alpha_shuffle= tagger.forward_algo(test_doc,flat=True)
+        perm_logprob = logsumexp(alpha_shuffle[-1])
+        # print("After shuffle the log prob is:"+str(perm_logprob))
         if logprob < perm_logprob:
             mistake +=1
-    print("Out of 15 permutation, recall is "+str(mistake))
+    print("Out of 15 permutation, #better permutation: "+str(mistake))
     return float(mistake/num)
+
 
 def permutation_test(num):
     inputs = os.listdir(input_dir)
@@ -218,11 +219,24 @@ def permutation_test(num):
         
 
 
+def show_trans(tagger,topic):
+    import matplotlib.pyplot as plt
+    from matplotlib.pyplot import cm
+    plt.imshow(tagger._trans, cmap = cm.Greys,interpolation = 'nearest')
+    plt.title(topic)
+    plt.savefig(topic+'.jpg')
+
+
 
 
 
 if __name__ == '__main__':
+    # docs,vocab = pickle.load(open("contentHMM_input/contents/Teachers and School Employees/Teachers and School Employees2.pkl"))
+    # tagger = pickle.load(open('contentHMM_tagger/Teachers and School Employees.pkl'))
+    # permutation_test_single(tagger,docs[0],20)
+
     train_all()
+
     # f = "/home/ml/jliu164/corpus/nyt_corpus/content_annotated/2002content_annotated/1355806.txt.xml"
     # doc,vocab = preprocess(f)
     # print("." in vocab)
