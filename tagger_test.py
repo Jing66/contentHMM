@@ -10,8 +10,9 @@ from content_hmm import *
 
 input_dir = '/home/ml/jliu164/code/contentHMM_input/summaries/'
 tagger_dir = '/home/ml/jliu164/code/contentHMM_tagger/summaries/'
-root_dir = "/home/ml/jliu164/corpus/nyt_corpus/summary_annotated/"
+root_dir = "/home/ml/jliu164/corpus/nyt_corpus/content_annotated/"
 para_path = tagger_dir+'hyper-para.txt'
+image_dir = '/home/ml/jliu164/code/contentHMM_tagger/Transition Image/summaries/'
 ########################################################################################################
 ######################################### Group Input Test  ############################################
 ########################################################################################################
@@ -40,8 +41,10 @@ def preprocess(file_path):
         tokens.insert(0,START_SENT)
         tokens.append(END_SENT) 
         docs.append(tokens)
-    
-    docs[0] = [START_DOC]+docs[0]   #['**START_DOC**', '**START_SENT**', u'the', u'head', u'of', u'the', u'united', u'nations', u'election', u'agency', u'say', u'sunday', u'that', u'she', u'would', u'resist', u'a', u'report', u'action', u'to', u'oust', u'she', u'from', u'she', u'position', u',', u'a', u'move', u'that', u'would', u'come', u'a', u'week', u'before', u'crucial', u'election', u'she', u'office', u'be', u'oversee', u'in', u'iraq.secretary', u'general', u'kofi', u'annan', u'plan', u'to', u'deliver', u'a', u'dismissal', u'letter', u'to', u'carina', u'perelli', u',', u'head', u'of', u'the', u'united', u'nations', u"'", u'electoral', u'assistance', u'division', u',', u'the', u'associated', u'press', u'report', u'and', u'two', u'united', u'nations', u'official', u'confirm', u'.', '**END_SENT**']]
+
+    if len(docs)>0:    
+        docs[0] = [START_DOC]+docs[0]   #['**START_DOC**', '**START_SENT**', u'the', u'head', u'of', u'the', u'united', u'nations', u'election', u'agency', u'say', u'sunday', u'that', u'she', u'would', u'resist', u'a', u'report', u'action', u'to', u'oust', u'she', u'from', u'she', u'position', u',', u'a', u'move', u'that', u'would', u'come', u'a', u'week', u'before', u'crucial', u'election', u'she', u'office', u'be', u'oversee', u'in', u'iraq.secretary', u'general', u'kofi', u'annan', u'plan', u'to', u'deliver', u'a', u'dismissal', u'letter', u'to', u'carina', u'perelli', u',', u'head', u'of', u'the', u'united', u'nations', u"'", u'electoral', u'assistance', u'division', u',', u'the', u'associated', u'press', u'report', u'and', u'two', u'united', u'nations', u'official', u'confirm', u'.', '**END_SENT**']]
+
     return docs, vocab
 
 
@@ -119,7 +122,7 @@ def train_single(dev_path, train_path,topic):
         print("Cannot load input develop set: "+dev_path)
         return None
     delta_1, delta_2, k, T = 0.001, 0.2, 40, 4
-    myTagger = ContentTagger(docs_dev,vocab_dev, k, delta_1, delta_2, T)
+    myTagger = ContentTagger(docs_dev,vocab_dev, delta_1, delta_2, T = T,k = k)
     delta_1, delta_2, k, T = hyper(myTagger)
 
     print("====== Training.... ============ delta 1, delta 2, k, T:")
@@ -132,7 +135,7 @@ def train_single(dev_path, train_path,topic):
     except:
         print("Cannot load input training set: "+train_path)
         return None
-    myTagger2 = ContentTagger(docs_train,vocab_train,k,delta_1,delta_2,T)
+    myTagger2 = ContentTagger(docs_train,vocab_train,delta_1,delta_2,T = T, k = k)
     myTagger2.train_unsupervised()
     
     return myTagger2
@@ -156,8 +159,11 @@ def train_all():
         train_path = input_dir+topic+'/'+topic+"1.pkl"
         test_path = input_dir+topic+'/'+topic+'2.pkl'
 
-        myTagger = train_single(dev_path,train_path,topic)
-        
+        try:
+            myTagger = train_single(dev_path,train_path,topic)
+        except:
+	    print("!!!!!!!Training the model for {} failed! ".format(topic))
+            continue
         # save the tagger
         if myTagger:
             pickle.dump(myTagger, open(tagger_dir+topic+'.pkl','wb'))
@@ -175,16 +181,27 @@ def permutation_test_single(tagger, test_doc, num):
     """
     Given a tagger, test on a document/article
     """
-    alpha = tagger.forward_algo(test_doc, flat=True)
+    vocabs = [set(i) for i in test_doc]
+    vocab = reduce(lambda a,b:a.union(b),vocabs)
+    vocab.discard(START_SENT)
+    vocab.discard(START_DOC)
+    vocab.discard(END_SENT)
+    
+    test_tagger = ContentTagger([test_doc],vocab, tagger._delta_1, tagger._delta_2, emis = tagger._emis, trans = tagger._trans, prior = tagger._priors)
+    # pickle.dump(test_tagger,open("test.pkl",'wb'))
+    
+    test_tagger._clusters, test_tagger._flat = test_tagger.viterbi()
+    # print(test_tagger._flat)
+    alpha = test_tagger.forward_algo()
     logprob = logsumexp(alpha[-1])
     # print("Original logprob: "+str(logprob))
     mistake = 0 
     for i in range(num):
-        # shuffle doc, shuffle sentence in doc
-        
+        # shuffle sentence in doc
         np.random.shuffle(test_doc)
-        
-        alpha_shuffle= tagger.forward_algo(test_doc,flat=True)
+        test_tagger._clusters, test_tagger.flat = test_tagger.viterbi(test_doc, flat = True)
+
+        alpha_shuffle= test_tagger.forward_algo(test_doc)
         perm_logprob = logsumexp(alpha_shuffle[-1])
         # print("After shuffle the log prob is:"+str(perm_logprob))
         if logprob < perm_logprob:
@@ -193,7 +210,12 @@ def permutation_test_single(tagger, test_doc, num):
     return mistake
 
 
-def permutation_test(test_num):
+def permutation_test(doc_num, test_num):
+    """
+    perform permutation test. 
+    doc_num: the number of documents to be sampled to be tested on.
+    test_num: the number of times each document is shuffled to be test
+    """
     inputs = os.listdir(input_dir)
     taggers = os.listdir(tagger_dir)
     mistake = 0
@@ -212,35 +234,47 @@ def permutation_test(test_num):
         try:
             myTagger = pickle.load(open(tagger_dir+topic+'.pkl'))
         except:
-            print(" Model isn't available!")
+            print("Model isn't available!")
             continue
 
-        for doc in test_docs:
-            mistake += permutation_test_single(myTagger, doc, test_num)
-        print("For topic "+topic+", mistake rate is" + str(float(mistake)/(len(test_docs*test_num))))
+        trans_image(myTagger,topic)
 
+        for _ in range(doc_num):
+            i = np.random.random_integers(len(test_docs)-1)
+            mistake += permutation_test_single(myTagger, test_docs[i], test_num)
+        
+    f = open("Content permutation test result.txt",'a')
+    f.write("For topic "+topic+", mistake rate is" + str(float(mistake)/(test_num*doc_num)))
+    f.close()
         
 
 
-def show_trans(tagger,topic):
+def trans_image(tagger,topic):
     import matplotlib.pyplot as plt
     from matplotlib.pyplot import cm
     plt.imshow(tagger._trans, cmap = cm.Greys,interpolation = 'nearest')
     plt.title(topic)
-    plt.savefig(topic+'.jpg')
-
-
+    plt.savefig(image_dir + topic+'.jpg')
 
 
 
 if __name__ == '__main__':
-    # docs,vocab = pickle.load(open("contentHMM_input/contents/Teachers and School Employees/Teachers and School Employees2.pkl"))
-    # tagger = pickle.load(open('contentHMM_tagger/Teachers and School Employees.pkl'))
-    # permutation_test_single(tagger,docs[0],20)
+    # docs,vocab = pickle.load(open("contentHMM_input/contents/News and News Media/News and News Media2.pkl"))
+    # tagger = pickle.load(open('test tagger.pkl'))
+    # mistake = 0.0
+    # for _ in range(10):
+    #     i = np.random.random_integers(len(docs)-1)
+    #     print("Test on doc # "+str(i))
+    #     print("Test doc has # sentences: "+str(len(docs[i])))
+    #     mistake = permutation_test_single(tagger,docs[i],20)
+    # print("Final: "+str(mistake/(len(docs)*20)))
+     
+    train_all()
 
-    # train_all()
+   # permutation_test(10,10)
 
-    dev_path = 'contentHMM_input/contents/News and News Media/News and News Media0.pkl'
-    train_path = 'contentHMM_input/contents/News and News Media/News and News Media1.pkl'
-    tag = train_single(dev_path,train_path,"MondayAfternoon2")
-    pickle.dump(tag,open("News random.pkl",'wb'))
+   # dev_path = 'contentHMM_input/summaries/News and News Media/News and News Media0.pkl'
+   # train_path = 'contentHMM_input/summaries/News and News Media/News and News Media1.pkl'
+
+   # tag = train_single(dev_path,train_path,"MondayAfternoon3")
+   # pickle.dump(tag,open("News random.pkl",'wb'))

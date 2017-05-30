@@ -103,7 +103,7 @@ def logsumexp(arr):
 ########################################################################################################
 
 class ContentTagger():
-    def __init__(self, docs, vocab, k, delta_1, delta_2, T):
+    def __init__(self, docs, vocab,  delta_1, delta_2, T = None ,k = None, emis = None, trans = None,prior = None):
         self._docs = docs # a list of documents, each is a list of sentences
         self._delta_1 = delta_1
         self._delta_2 = delta_2
@@ -116,31 +116,36 @@ class ContentTagger():
         # dn = hac.dendrogram(self._tree)
         # plt.show()
 
-        cluster ,flat_c = make_clusters(flat_docs,self._tree, k)
-        # self._clusters is a list of clusters, each containing a list of sentences, each containing a list of words
-        self._clusters,self._flat = filter_etc(cluster,flat_c, T) 
+        if T and k:
+            cluster ,flat_c = make_clusters(flat_docs,self._tree, k)
+            # self._clusters is a list of clusters, each containing a list of sentences, each containing a list of words
+            self._clusters,self._flat = filter_etc(cluster,flat_c, T) 
         
-        self._m = len(self._clusters) # cluster[m-1] is the etc cluster
+            self._m = len(self._clusters) # cluster[m-1] is the etc cluster
+        
         self._vocab = vocab # vocab doesn't contain START/END
         self._V = len(self._vocab)
-
         # map all words into string from 1 to |V|+1. #0 is for START_SENT
         self._map = dict(zip(list(self._vocab),range(3,self._V+3)))
         self._map[START_SENT] = 0
         self._map[END_SENT] = 1
         self._map[UNK] = 2
 
-        print("After filter, total #cluster: "+str(self._m))
+
         # print(self._vocab)
-        print("Vocabulary size: "+str(self._V))
-        print("=============== Initializing Clusters =====================")
+        # print("Vocabulary size: "+str(self._V))
         #print(self._clusters)
         #print(self._flat)
-   
-        self._priors = self.prior()
-        self._trans = self.trans_prob()
-        self._emis = self.emission_prob_all()
+        # print(self._m)
+       
+        self._priors = self.prior() if prior is None else prior
+        self._trans = self.trans_prob() if trans is None else trans
+        self._emis = self.emission_prob_all() if emis is None else emis
 
+        if not T and not k:
+            self._m = len(self._emis) +1
+
+        # print("After initialization, total #cluster: "+str(self._m))
     ############################################ Emission Probability for sentences  #####################################
     def emission_prob_all(self):
         # create cache for countings 
@@ -171,15 +176,19 @@ class ContentTagger():
         cache = self._emis
         cache_max = np.zeros((self._V+3,self._V+3))
         emis_prob = np.zeros((self._m-1, len(sents_all))) #[i]: [[s1,s2...],[]] until state m-1
+        
         # prob for emis_etc
         emis_etc = np.zeros(len(sents_all))
+        
         # unigram cache
         uni_cache = [i.sum(axis=1).ravel().getA().flatten() for i in cache] # [i,j] = f_ci(map[j])
         uni_cache = np.array(uni_cache)
+
         
         for j in range(len(sents_all)):
             seq = sents_all[j]
             bigrams_seq = list(bigrams(seq))
+
             
             if bigrams_seq[0][0] == START_DOC:
                 bigrams_seq = bigrams_seq[1:]
@@ -187,10 +196,17 @@ class ContentTagger():
                 
                 w = bigr[0] if bigr[0] in self._vocab else UNK
                 w_prime = bigr[1] if bigr[1] in self._vocab else UNK
+                # print(w+", "+w_prime)
+                # print(self._map[w])
+                # print(self._map[w_prime])
 
                 state_cache = [ci[self._map[w],self._map[w_prime]] for ci in cache]
                 state_cache = np.array(state_cache)
+                # print(state_cache)
+
                 word_prob = self.cal_prob(state_cache, uni_cache[:,self._map[w]])
+                # print(word_prob)
+                
                 emis_prob[:,j] += np.log(word_prob)
                 cache_max[self._map[w],self._map[w_prime]] = max(np.max(word_prob), cache_max[self._map[w],self._map[w_prime]])
 
@@ -345,11 +361,16 @@ class ContentTagger():
         iteration= 0
         log_prob = 0.0
 
+        if len(self._emis) == 0:
+                raise Exception("Number of clusters cannot be 0!")
+
         alpha = self.forward_algo()
         last_logprob = logsumexp(alpha[-1])
         print(" >> Initial log prob by forward algo: ", last_logprob)
 
         while not converged and iteration < max_inter:
+            if len(self._emis) == 0:
+                raise Exception("Number of clusters cannot be 0!")
             self._clusters ,self._flat= self.viterbi()
             self._emis = self.emission_prob_all()
             self._trans = self.trans_prob()
@@ -434,21 +455,31 @@ def hyper(tagger):
     # delta_2 = np.random.uniform(0.00001,1)
     # k = np.random.random_integers(25,50)
     # t = np.random.random_integers(3,10)
+
     # Sampling 30 times
-    for i in range(30):
-        delta_1 = np.random.uniform(0.00001,1)
-        delta_2 = np.random.uniform(0.00001,1)
-        k = np.random.random_integers(25,50)
+    i = 0
+    while i<30:
+        delta_1 = np.random.uniform(0.0000001,1)
+        delta_2 = np.random.uniform(0.0000001,1)
+        k = np.random.random_integers(20,50)
         t = np.random.random_integers(3,10)
         print("++++++++++++++ Sampling #"+str(i)+"+++++++++++++++")
         
         tagger.adjust_tree(k, tree, t,delta_1,delta_2)
+        
         print(" Training model with hyper parameters ", delta_1, delta_2 , k, t)
-        log_prob = tagger.train_unsupervised()
-        if log_prob > last_log:
-            delta1,delta2,K,T = delta_1, delta_2 , k, t
-            print(">>>>Improve hyperparameter to: ",delta1,delta2,K,T)
-            last_log = log_prob
+        try:
+            log_prob = tagger.train_unsupervised()
+        except Exception:
+            print(" This hyperparameter does not work!")
+            pass
+
+        else:
+            i += 1
+            if log_prob > last_log:
+                delta1,delta2,K,T = delta_1, delta_2 , k, t
+                print(">>>>Improve hyperparameter to: ",delta1,delta2,K,T)
+                last_log = log_prob
 
         # delta_1 = delta_1 + np.random.uniform(-0.1,0.1)
         # delta_1 = max(0.0001,delta_1)
@@ -499,21 +530,31 @@ if __name__ == '__main__':
     # v ,f= myTagger.viterbi(myTagger._docs)
     # print(f)
 
-    from nltk import word_tokenize,sent_tokenize
-    test = ["So how about this ohhhh whaaa? This is a big foo bar right, is a. This is a large apple bar right.\
-    That must be something else right.","That can't ohhhh whaaa be something else right. This is a foo bar again right. is a"]
+    # from nltk import word_tokenize,sent_tokenize
+    # test = ["So how about this ohhhh whaaa? This is a big foo bar right, is a. This is a large apple bar right.\
+    # That must be something else right.","That can't ohhhh whaaa be something else right. This is a foo bar again right. is a"]
     
-    docs = [[['**START_DOC**','**START_SENT**', 'so', 'how', 'about', 'this', 'one', 'ohhhh', 'whaaa', '**END_SENT**'],\
-    [ '**START_SENT**', 'this', 'is', 'a', 'big', 'foo', 'bar', 'right', 'is', 'a', '**END_SENT**'], \
-    ['**START_SENT**', 'this', 'is', 'a', 'large', 'apple', 'bar', 'right', '**END_SENT**'], \
-    ['**START_SENT**', 'that', 'must', 'be', 'something', 'else', 'right', '**END_SENT**']], \
-    [['**START_DOC**', '**START_SENT**', 'that', 'ca', "n't", 'ohhhh', 'whaaa', 'be', 'something', 'else', 'right', '**END_SENT**'],
-    ['**START_SENT**', 'this', 'is', 'a', 'foo', 'bar', 'again', 'right', '**END_SENT**'],\
-     ['**START_SENT**', 'is', 'a', '**END_SENT**']]]
+    # docs = [[['**START_DOC**','**START_SENT**', 'so', 'how', 'about', 'this', 'one', 'ohhhh', 'whaaa', '**END_SENT**'],\
+    # [ '**START_SENT**', 'this', 'is', 'a', 'big', 'foo', 'bar', 'right', 'is', 'a', '**END_SENT**'], \
+    # ['**START_SENT**', 'this', 'is', 'a', 'large', 'apple', 'bar', 'right', '**END_SENT**'], \
+    # ['**START_SENT**', 'that', 'must', 'be', 'something', 'else', 'right', '**END_SENT**']], \
+    # [['**START_DOC**', '**START_SENT**', 'that', 'ca', "n't", 'ohhhh', 'whaaa', 'be', 'something', 'else', 'right', '**END_SENT**'],
+    # ['**START_SENT**', 'this', 'is', 'a', 'foo', 'bar', 'again', 'right', '**END_SENT**'],\
+    #  ['**START_SENT**', 'is', 'a', '**END_SENT**']]]
 
-    vocab = set(['right', 'apple', 'is', 'one', 'something', 'ohhhh', 'again', 'large', 'how', 'foo', 'ca',  'be', 'that', 'big', 'else', 'must', 'a', 'about', 'bar', 'this', 'whaaa', "n't", 'so'])
-    myTagger = ContentTagger(docs,vocab, 3,1,1,3)
-    myTagger.print_info()
+    # vocab = set(['right', 'apple', 'is', 'one', 'something', 'ohhhh', 'again', 'large', 'how', 'foo', 'ca',  'be', 'that', 'big', 'else', 'must', 'a', 'about', 'bar', 'this', 'whaaa', "n't", 'so'])
+    # myTagger = ContentTagger(docs,vocab, 1,1,0,3)
+    
+    import pickle
+    train_path = "contentHMM_input/contents/News and News Media/News and News Media0.pkl"
+    doc,vocab = pickle.load(open(train_path))
+    delta_1,delta_2,k,T = 0.021665726605398998, 0.5116140306128781, 20, 4
+    tagger = ContentTagger(doc,vocab,delta_1,delta_2,T = T,k=k)
+    tagger.train_unsupervised()
+    pickle.dump(tagger, open("test tagger.pkl",'wb'))
+
+
+    # myTagger.print_info()
     # test_list = [val for i in myTagger._docs for val in i]
     # sent_all = [val for doc in docs for val in doc]
 
@@ -529,8 +570,8 @@ if __name__ == '__main__':
     # print("========Testing Foward Algo ==========")
     # print(myTagger.forward_algo())
 
-    # print("========Testing Training ==========")
-    # myTagger.train_unsupervised()
+    print("========Testing Training ==========")
+    myTagger.train_unsupervised()
     # print("Final Clusters and flat: ")
     # print(myTagger._clusters)
     # print(myTagger._flat)
