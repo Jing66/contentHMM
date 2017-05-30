@@ -108,7 +108,6 @@ class ContentTagger():
         self._delta_1 = delta_1
         self._delta_2 = delta_2
         flat_docs = [i for di in self._docs for i in di]
-
         
         self._tree = make_cluster_tree(flat_docs)  
         # print the linkage tree
@@ -461,7 +460,7 @@ def hyper(tagger):
     while i<30:
         delta_1 = np.random.uniform(0.0000001,1)
         delta_2 = np.random.uniform(0.0000001,1)
-        k = np.random.random_integers(20,50)
+        k = np.random.random_integers(10,50)
         t = np.random.random_integers(3,10)
         print("++++++++++++++ Sampling #"+str(i)+"+++++++++++++++")
         

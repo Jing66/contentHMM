@@ -1,4 +1,4 @@
-from corenlpy import AnnotatedText as A
+
 import pickle
 import random
 import os
@@ -25,6 +25,8 @@ def preprocess(file_path):
     return [0]: a document, in the form of a list of sentences
             [1]: a set of all vocabulary
     """
+    from corenlpy import AnnotatedText as A
+
     docs = []
     vocab = set()
     try:
@@ -186,6 +188,7 @@ def permutation_test_single(tagger, test_doc, num):
     vocab.discard(START_SENT)
     vocab.discard(START_DOC)
     vocab.discard(END_SENT)
+    # tagger.print_info()
     
     test_tagger = ContentTagger([test_doc],vocab, tagger._delta_1, tagger._delta_2, emis = tagger._emis, trans = tagger._trans, prior = tagger._priors)
     # pickle.dump(test_tagger,open("test.pkl",'wb'))
@@ -241,7 +244,13 @@ def permutation_test(doc_num, test_num):
 
         for _ in range(doc_num):
             i = np.random.random_integers(len(test_docs)-1)
-            mistake += permutation_test_single(myTagger, test_docs[i], test_num)
+
+            print("Testing with doc {} of length {}...".format(str(i),str(len(test_docs[i]))))
+            try:
+                mistake += permutation_test_single(myTagger, test_docs[i], test_num)
+            except:
+                print("Cannot test this model!")
+                pass
         
     f = open("Content permutation test result.txt",'a')
     f.write("For topic "+topic+", mistake rate is" + str(float(mistake)/(test_num*doc_num)))
@@ -250,6 +259,9 @@ def permutation_test(doc_num, test_num):
 
 
 def trans_image(tagger,topic):
+    """
+    Given a tagger, generate its transition probability graph
+    """
     import matplotlib.pyplot as plt
     from matplotlib.pyplot import cm
     plt.imshow(tagger._trans, cmap = cm.Greys,interpolation = 'nearest')
@@ -258,9 +270,72 @@ def trans_image(tagger,topic):
 
 
 
+########################################################################################################
+######################################### Extractive Summary  ##########################################
+########################################################################################################
+
+def extract_summary_train(tagger,summary_sent):
+    """
+    summary_sent: a list of documents, each is a list of sentences, each sentence is a list of words.
+    return: an array of log probability for each topic to appear in summary
+    """
+    summary_cluster, summary_flat = tagger.viterbi(summary_sent)
+    article_cluster, article_flat = tagger.viterbi()
+
+    summary_flat = np.array(summary_flat)
+    article_flat = np.array(article_flat)
+
+    print(len(summary_sent))
+    print(len(tagger._docs))
+
+    states = set([i for i in article_flat if np.count_nonzero(article_flat==i) >= 3])
+    # print("Candidate states: "+str(states))
+    state_prob = np.zeros(max(states)+1)
+    for s in states:
+        count_summary = np.count_nonzero(summary_flat == s )
+        count_article = np.count_nonzero(article_flat == s )
+        state_prob[s] = float(count_summary)/count_article
+    # print(state_prob)
+    return np.log(state_prob)
+
+def extract_summary(tagger, article_sent, l, state_prob = None, summary_train = None):
+    """
+    Given an article, produce length-l summary
+    return: a list of sentences as summary
+    """
+    if state_prob is None and summary_train:
+        state_prob = extract_summary_train(tagger, summary_train)
+    elif state_prob is None and not summary_train:
+        print(" Please either give summaries to train on or a existing topic probability ndarray!")
+        exit(1)
+
+    _ , flat = tagger.viterbi(article_sent, flat = True)
+    flat = np.array(flat)
+
+    largest = np.argmax(state_prob)
+    indices = np.where(flat == largest)[0]
+    # print(indices)
+    # for ind in indices:
+    #     out.add(ind)
+    out_l = np.sort(indices)
+    summary = []
+    for i in out_l:
+        summary.append(article_sent[i])
+    return summary
+
+
+
+
+
+#################################################################################################
+#########################################   Testing    ##########################################
+#################################################################################################
+
 if __name__ == '__main__':
-    # docs,vocab = pickle.load(open("contentHMM_input/contents/News and News Media/News and News Media2.pkl"))
-    # tagger = pickle.load(open('test tagger.pkl'))
+    
+    docs,vocab = pickle.load(open("contentHMM_input/contents/News and News Media/News and News Media2.pkl"))
+    tagger = pickle.load(open('test tagger.pkl'))
+    summaries, _ = pickle.load(open("contentHMM_input/contents/News and News Media/News and News Media1.pkl"))
     # mistake = 0.0
     # for _ in range(10):
     #     i = np.random.random_integers(len(docs)-1)
@@ -269,12 +344,17 @@ if __name__ == '__main__':
     #     mistake = permutation_test_single(tagger,docs[i],20)
     # print("Final: "+str(mistake/(len(docs)*20)))
      
-    train_all()
+    # train_all()
 
-   # permutation_test(10,10)
+    # permutation_test(10,10)
+
+    length = [len(docs[i]) for i in range(len(docs))]
+    print(length)
+    summary = extract_summary(tagger,docs[0],3, summary_train = summaries)
+    print(summary)
+
 
    # dev_path = 'contentHMM_input/summaries/News and News Media/News and News Media0.pkl'
    # train_path = 'contentHMM_input/summaries/News and News Media/News and News Media1.pkl'
-
    # tag = train_single(dev_path,train_path,"MondayAfternoon3")
    # pickle.dump(tag,open("News random.pkl",'wb'))
