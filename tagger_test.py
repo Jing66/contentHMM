@@ -139,8 +139,10 @@ def train_single(dev_path, train_path,topic):
         print("Cannot load input develop set: "+dev_path)
         return None
     delta_1, delta_2, k, T = 0.001, 0.2, 40, 4
-    myTagger = ContentTagger(docs_dev,vocab_dev, delta_1, delta_2, T = T,k = k)
-    delta_1, delta_2, k, T = hyper(myTagger)
+    emis = range(15)
+    tagger = ContentTagger(vocab, emis, None,None, delta_1,delta_2)
+    delta_1,delta_2,k,T = tagger.hyper_train(docs,vocab)
+
 
     print("====== Training.... ============ delta 1, delta 2, k, T:")
     print(delta_1,delta_2,k,T)
@@ -152,10 +154,9 @@ def train_single(dev_path, train_path,topic):
     except:
         print("Cannot load input training set: "+train_path)
         return None
-    myTagger2 = ContentTagger(docs_train,vocab_train,delta_1,delta_2,T = T, k = k)
-    myTagger2.train_unsupervised()
+    new_tagger = tagger.train(train_docs, train_vocab, k, T, delta_1, delta_2)
     
-    return myTagger2
+    return new_tagger
 
 
 def train_all():
