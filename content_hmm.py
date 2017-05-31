@@ -7,7 +7,7 @@ import scipy.cluster.hierarchy as hac
 from collections import Counter
 from scipy.misc import comb
 from scipy.sparse import dok_matrix
-#import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 
 from nltk.corpus import stopwords
 
@@ -284,19 +284,22 @@ class ContentTagger():
         """
         Given the development set of doc and vocab, return the best set of hyper parameter for the trainer of this topic
         """
-        delta_1 = np.random.uniform(0.0000001,1)
-        delta_2 = np.random.uniform(0.0000001,1)
+        delta_1 = np.random.uniform(0.0000001,0.01)
+        delta_2 = np.random.uniform(0.1,10)
         k = np.random.random_integers(10,50)
         t = np.random.random_integers(3,10)
 
         trainer = ContentTaggerTrainer(docs, vocab, k, t, delta_1, delta_2)
         tree = trainer._tree
 
+        print(">> Initial Clustering:")
+        print(dict(Counter(trainer._flat)))
+
         last_log = -np.inf
         i = 0
         while i<30:
-            delta_1 = np.random.uniform(0.0000001,1)
-            delta_2 = np.random.uniform(0.0000001,1)
+            delta_1 = np.random.uniform(0.0000001,0.01)
+            delta_2 = np.random.uniform(0.1,10)
             k = np.random.random_integers(10,50)
             t = np.random.random_integers(3,10)
             print("++++++++++++++ Sampling #"+str(i)+"+++++++++++++++")
@@ -304,20 +307,23 @@ class ContentTagger():
             trainer.adjust_tree(k, tree, t,delta_1,delta_2)
             
             print(" Training model with hyper parameters ", delta_1, delta_2 , k, t)
-            try:
-                new_model = trainer.train_unsupervised(30,1e-8)
-                alpha = new_model.forward_algo(docs)
-                log_prob = logsumexp(alpha[-1])
-            except Exception:
-                print(" This hyperparameter does not work!")
-                pass
+            print(len(trainer._emis))
+            # try:
+            #     new_model = trainer.train_unsupervised(30,1e-8)
+            # except Exception:
+            #     print(" This hyperparameter does not work!")
+            #     pass
+            new_model = trainer.train_unsupervised(30,1e-8)
+            # else:
+            alpha = new_model.forward_algo(docs)
+            log_prob = logsumexp(alpha[-1])
 
-            else:
-                i += 1
-                if log_prob > last_log:
-                    delta1,delta2,K,T = delta_1, delta_2 , k, t
-                    print(">>>>Improve hyperparameter to: ",delta1,delta2,K,T)
-                    last_log = log_prob
+            i += 1
+            if log_prob > last_log:
+                delta1,delta2,K,T = delta_1, delta_2 , k, t
+                print(">>>>Improve hyperparameter to: ",delta1,delta2,K,T)
+                last_log = log_prob
+
         return delta1,delta2,K,T
 
 
@@ -447,6 +453,7 @@ class ContentTaggerTrainer():
         log_prob = 0.0
         model = ContentTagger(self._vocab, self._emis, self._trans, self._priors, self._delta_1, self._delta_2)
         if len(self._emis) == 0:
+                print("Number of clusters cannot be 0!")
                 raise Exception("Number of clusters cannot be 0!")
 
         alpha = model.forward_algo(self._docs)
@@ -454,10 +461,10 @@ class ContentTaggerTrainer():
         print(" >> Initial log prob by forward algo: ", last_logprob)
         
         while not converged and iteration < max_iter:
-            if len(self._emis) == 0:
-                print("Number of clusters cannot be 0!")
-                raise Exception("Number of clusters cannot be 0!")
-            self._clusters ,self._flat= model.viterbi(docs)
+            # if len(self._emis) == 0:
+            #     print("Number of clusters cannot be 0!")
+            #     raise Exception("Number of clusters cannot be 0!")
+            self._clusters ,self._flat= model.viterbi(self._docs)
 
             self._emis = self.emission_prob_all()
             self._trans = self.trans_prob()
@@ -474,7 +481,7 @@ class ContentTaggerTrainer():
             # print(self._flat)
             # print(np.exp(self._priors))
 
-            if iteration>0 and abs(log_prob - last_logprob) < converg_logprob:
+            if iteration>0 and (abs(log_prob - last_logprob) < converg_logprob or log_prob < last_logprob):
                 converged = True
             
             iteration += 1
@@ -535,7 +542,7 @@ if __name__ == '__main__':
     emis = range(15)
     tagger = ContentTagger(vocab, emis, None,None, delta_1,delta_2)
     delta_1,delta_2,k,T = tagger.hyper_train(docs,vocab)
-    
+    print("Line 539")
     train_docs, train_vocab = "contentHMM_input/contents/News and News Media/News and News Media1.pkl"
     new_tagger = tagger.train(train_docs, train_vocab, k, T, delta_1, delta_2)
 

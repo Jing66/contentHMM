@@ -5,15 +5,19 @@ import os
 import re
 import json
 import time
+import sys
 
 from content_hmm import *
 
-input_dir = '/home/ml/jliu164/code/contentHMM_input/summaries/'
-tagger_dir = '/home/ml/jliu164/code/contentHMM_tagger/summaries/'
+input_dir = '/home/ml/jliu164/code/contentHMM_input/contents/'
+tagger_dir = '/home/ml/jliu164/code/contentHMM_tagger/contents/'
 root_dir = "/home/ml/jliu164/corpus/nyt_corpus/summary_annotated/"
+choice = 'summary_annotated'
 para_path = tagger_dir+'hyper-para.txt'
 image_dir = '/home/ml/jliu164/code/contentHMM_tagger/Transition Image/contents/'
 fail_path = '/home/ml/jliu164/code/contentHMM_input/fail/'
+
+
 ########################################################################################################
 ######################################### Group Input Test  ############################################
 ########################################################################################################
@@ -66,7 +70,7 @@ def group_files(start,end, low, high):
     dicts = {}
     for i in range(start,end):
         topic_dir = in_dir +str(i)+'/'
-        file_dir = str(i)+'summary_annotated/'
+        file_dir = str(i)+choice
         # topics = os.walk(topic_dir).next()[2] # ["XXX.json","XXX.json",'XXX.txt']
         topic = "topics_indexing_services.json"  # indexing_service.json
         with open(topic_dir+topic) as data_file:
@@ -138,13 +142,13 @@ def train_single(dev_path, train_path,topic):
     except:
         print("Cannot load input develop set: "+dev_path)
         return None
-    delta_1, delta_2, k, T = 0.001, 0.2, 40, 4
+    delta_1, delta_2 = 0.001, 1
     emis = range(15)
-    tagger = ContentTagger(vocab, emis, None,None, delta_1,delta_2)
-    delta_1,delta_2,k,T = tagger.hyper_train(docs,vocab)
+    tagger = ContentTagger(vocab_dev, emis, None,None, delta_1,delta_2)
+    delta_1,delta_2,k,T = tagger.hyper_train(docs_dev,vocab_dev)
 
 
-    print("====== Training.... ============ delta 1, delta 2, k, T:")
+    print("=============== Training.... ============ delta 1, delta 2, k, T:")
     print(delta_1,delta_2,k,T)
     para = {topic:(delta_1,delta_2,k,T)}
     with open(para_path,'a') as f:
@@ -154,7 +158,7 @@ def train_single(dev_path, train_path,topic):
     except:
         print("Cannot load input training set: "+train_path)
         return None
-    new_tagger = tagger.train(train_docs, train_vocab, k, T, delta_1, delta_2)
+    new_tagger = tagger.train(docs_train, vocab_train, k, T, delta_1, delta_2)
     
     return new_tagger
 
@@ -163,6 +167,9 @@ def train_all():
     """
     Train taggers on all topics and store the tagger in: /home/ml/jliu164/code/contentHMM_tagger/
     """
+    if not os.path.exists(tagger_dir):
+        os.makedirs(tagger_dir)
+
     inputs = os.listdir(input_dir)
     # get all topics data input
     for topic in inputs:
@@ -171,9 +178,11 @@ def train_all():
         if os.path.exists(tagger_dir+topic+".pkl"):
             print( topic +" Model already exist! ")
             continue
+
         print("=============================================================")
         print("Training the model for topic "+topic)
         print("=============================================================")
+
         dev_path = input_dir+topic+'/'+topic+'0.pkl'
         train_path = input_dir+topic+'/'+topic+"1.pkl"
         test_path = input_dir+topic+'/'+topic+'2.pkl'
@@ -181,8 +190,12 @@ def train_all():
         try:
             myTagger = train_single(dev_path,train_path,topic)
         except:
-	    print("!!!!!!!Training the model for {} failed! ".format(topic))
+            print("!!!!!!!Training the model for {} failed! ".format(topic))
+            with open("error_log.txt",'a') as f:
+                f.write(topic+"\n")
+                f.write(sys.exc_info()[0]+"\n")
             continue
+
         # save the tagger
         if myTagger:
             pickle.dump(myTagger, open(tagger_dir+topic+'.pkl','wb'))
@@ -197,31 +210,25 @@ def train_all():
 ######################################### Permutation Test  ############################################
 ########################################################################################################
 
-def permutation_test_single(tagger, test_doc, num):
+def permutation_test_single(test_tagger, test_doc, num):
     """
     Given a tagger, test on a document/article
     """
-    vocabs = [set(i) for i in test_doc]
-    vocab = reduce(lambda a,b:a.union(b),vocabs)
-    vocab.discard(START_SENT)
-    vocab.discard(START_DOC)
-    vocab.discard(END_SENT)
+    # vocabs = [set(i) for i in test_doc]
+    # vocab = reduce(lambda a,b:a.union(b),vocabs)
+    # vocab.discard(START_SENT)
+    # vocab.discard(START_DOC)
+    # vocab.discard(END_SENT)
     # tagger.print_info()
     
-    test_tagger = ContentTagger([test_doc],vocab, tagger._delta_1, tagger._delta_2, emis = tagger._emis, trans = tagger._trans, prior = tagger._priors)
-    # pickle.dump(test_tagger,open("test.pkl",'wb'))
-    
-    test_tagger._clusters, test_tagger._flat = test_tagger.viterbi()
-    # print(test_tagger._flat)
-    alpha = test_tagger.forward_algo()
+    alpha = test_tagger.forward_algo(test_doc, flat = True)
     logprob = logsumexp(alpha[-1])
     # print("Original logprob: "+str(logprob))
     mistake = 0 
     for i in range(num):
         # shuffle sentence in doc
         np.random.shuffle(test_doc)
-        test_tagger._clusters, test_tagger.flat = test_tagger.viterbi(test_doc, flat = True)
-
+        # test_tagger._clusters, test_tagger.flat = test_tagger.viterbi(test_doc, flat = True)
         alpha_shuffle= test_tagger.forward_algo(test_doc)
         perm_logprob = logsumexp(alpha_shuffle[-1])
         # print("After shuffle the log prob is:"+str(perm_logprob))
@@ -375,9 +382,9 @@ def extract_summary(tagger, article_sent, l, state_prob = None, summary_train = 
 
 if __name__ == '__main__':
 
-    docs,vocab = pickle.load(open("contentHMM_input/contents/Olympic Games (2000)/Olympic Games (2000)2.pkl"))
-    tagger = pickle.load(open('contentHMM_tagger/contents/Olympic Games (2000).pkl'))
-    summaries, _ = pickle.load(open("contentHMM_input/summaries/Olympic Games (2000)/Olympic Games (2000)1.pkl"))
+    # docs,vocab = pickle.load(open("contentHMM_input/contents/Olympic Games (2000)/Olympic Games (2000)2.pkl"))
+    # tagger = pickle.load(open('contentHMM_tagger/contents/Olympic Games (2000).pkl'))
+    # summaries, _ = pickle.load(open("contentHMM_input/summaries/Olympic Games (2000)/Olympic Games (2000)1.pkl"))
     # mistake = 0.0
     # for _ in range(10):
     #     i = np.random.random_integers(len(docs)-1)
@@ -386,17 +393,21 @@ if __name__ == '__main__':
     #     mistake = permutation_test_single(tagger,docs[i],20)
     # print("Final: "+str(mistake/(len(docs)*20)))
      
-    # train_all()
+    train_all()
 
     # permutation_test(15,15)
-    print(dict(Counter(tagger._flat)))
-    length = [len(docs[i]) for i in range(len(docs))]
+
+    # print(dict(Counter(tagger._flat)))
+    # length = [len(docs[i]) for i in range(len(docs))]
     # print(length)
-    summary = extract_summary(tagger,docs[1],3, summary_train = summaries)
-    print(summary)
+    # summary = extract_summary(tagger,docs[1],3, summary_train = summaries)
+    # print(summary)
 
 
-   # dev_path = 'contentHMM_input/summaries/News and News Media/News and News Media0.pkl'
-   # train_path = 'contentHMM_input/summaries/News and News Media/News and News Media1.pkl'
-   # tag = train_single(dev_path,train_path,"MondayAfternoon3")
-   # pickle.dump(tag,open("News random.pkl",'wb'))
+   # dev_path = "contentHMM_input/contents/Olympic Games (2000)/Olympic Games (2000)0.pkl"
+   # train_path = "contentHMM_input/contents/Olympic Games (2000)/Olympic Games (2000)1.pkl"
+   # tag = train_single(dev_path,train_path,"WednesdayAfternoon3")
+   # delta1, delta2, k, T = 5.7774778572996404e-05, 6.155334807363642, 38, 4
+   # # docs_train, vocab_train = pickle.load(open(train_path,'rb'))
+   
+   # pickle.dump(tag,open("Olympic Games random.pkl",'wb'))
