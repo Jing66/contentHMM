@@ -10,14 +10,15 @@ from content_hmm import *
 
 input_dir = '/home/ml/jliu164/code/contentHMM_input/summaries/'
 tagger_dir = '/home/ml/jliu164/code/contentHMM_tagger/summaries/'
-root_dir = "/home/ml/jliu164/corpus/nyt_corpus/content_annotated/"
+root_dir = "/home/ml/jliu164/corpus/nyt_corpus/summary_annotated/"
 para_path = tagger_dir+'hyper-para.txt'
-image_dir = '/home/ml/jliu164/code/contentHMM_tagger/Transition Image/summaries/'
+image_dir = '/home/ml/jliu164/code/contentHMM_tagger/Transition Image/contents/'
+fail_path = '/home/ml/jliu164/code/contentHMM_input/fail/'
 ########################################################################################################
 ######################################### Group Input Test  ############################################
 ########################################################################################################
 
-def preprocess(file_path):
+def preprocess(file_path,fail_topic):
     """
     insert **START_DOC** before the start of each article; **START/END_SENT** before the start/end of each sentence;
     remove punctuation; replace numbers with 5, #digits are the same
@@ -33,6 +34,8 @@ def preprocess(file_path):
         xml = open(file_path).read()
     except:
         print("Cannot Open File "+file_path)
+        with open(fail_path+fail_topic+"_Failed.txt",'a') as f:
+            f.write(file_path+"\n")
         return docs,vocab
     annotated_text = A(xml)
     for sentence in annotated_text.sentences:
@@ -63,7 +66,7 @@ def group_files(start,end, low, high):
     dicts = {}
     for i in range(start,end):
         topic_dir = in_dir +str(i)+'/'
-        file_dir = str(i)+'content_annotated/'
+        file_dir = str(i)+'summary_annotated/'
         # topics = os.walk(topic_dir).next()[2] # ["XXX.json","XXX.json",'XXX.txt']
         topic = "topics_indexing_services.json"  # indexing_service.json
         with open(topic_dir+topic) as data_file:
@@ -91,12 +94,21 @@ def save_input(start,end,low,high):
     files = group_files(start,end,low,high)
     print({k:len(v) for k,v in files.items()})
     for topic in files.keys():
+
+        failed = set()
+        try:
+            with open(fail_path+topic+"_Failed.txt") as f:
+                failed = set(f.readlines())
+        except:
+            pass
+
         print(" Processing topic: "+topic)
         subdir = input_dir +topic+'/'
         if not os.path.exists(subdir):
             os.makedirs(subdir)
         else:
             continue
+
         file_path = files[topic]
         M = int(0.1*len(file_path))
         # [0]: dev set;[ 1]:train set; [2]: test set
@@ -108,7 +120,10 @@ def save_input(start,end,low,high):
             vocabs= set()
             for f in data_set[i]:
                 path = root_dir + f + ".txt.xml"
-                doc,vocab = preprocess(path)
+                if path in failed:
+                    continue
+
+                doc,vocab = preprocess(path, topic)
                 if doc!=[]:
                     docs.append(doc)
                 vocabs = vocabs.union(vocab)
@@ -153,6 +168,7 @@ def train_all():
         start_time = time.time()
         # skip the trained models
         if os.path.exists(tagger_dir+topic+".pkl"):
+            print( topic +" Model already exist! ")
             continue
         print("=============================================================")
         print("Training the model for topic "+topic)
@@ -179,6 +195,7 @@ def train_all():
 ########################################################################################################
 ######################################### Permutation Test  ############################################
 ########################################################################################################
+
 def permutation_test_single(tagger, test_doc, num):
     """
     Given a tagger, test on a document/article
@@ -230,6 +247,7 @@ def permutation_test(doc_num, test_num):
         test_path = input_dir+topic+'/'+topic+'2.pkl'
         try:
             test_docs,vocabs = pickle.load(open(test_path))
+           
         except:
             print("Test files not available!")
             continue
@@ -279,24 +297,45 @@ def extract_summary_train(tagger,summary_sent):
     summary_sent: a list of documents, each is a list of sentences, each sentence is a list of words.
     return: an array of log probability for each topic to appear in summary
     """
-    summary_cluster, summary_flat = tagger.viterbi(summary_sent)
-    article_cluster, article_flat = tagger.viterbi()
+    article_sent = tagger._docs[:]
+    summary_length = [len(i) for i in summary_sent]
+    train_length = [len(i) for i in article_sent]
+   
+    ptr = min(len(summary_sent),len(article_sent))
+    summary_sent = summary_sent[:ptr]
+    article_sent = article_sent[:ptr]
+
+    summary_length = [len(i) for i in summary_sent]
+    train_length = [len(i) for i in article_sent]
+
+    _, summary_flat = tagger.viterbi(summary_sent)
+    _, article_flat = tagger.viterbi(article_sent)
 
     summary_flat = np.array(summary_flat)
     article_flat = np.array(article_flat)
 
-    print(len(summary_sent))
-    print(len(tagger._docs))
-
-    states = set([i for i in article_flat if np.count_nonzero(article_flat==i) >= 3])
-    # print("Candidate states: "+str(states))
+    states = set([i for i in range(np.max(article_flat)) if np.count_nonzero(article_flat == i)>=3])
+    
     state_prob = np.zeros(max(states)+1)
-    for s in states:
-        count_summary = np.count_nonzero(summary_flat == s )
-        count_article = np.count_nonzero(article_flat == s )
-        state_prob[s] = float(count_summary)/count_article
-    # print(state_prob)
-    return np.log(state_prob)
+    cache_pair = np.zeros(max(states)+1)
+    cache_doc = np.zeros(max(states)+1)
+    j = 0
+    k = 0
+    for i in range(len(train_length)):
+        summary_part = summary_flat[k:k+summary_length[i]]
+        article_part = article_flat[j:j+train_length[i]]
+        state_intersec = set(article_part).intersection(set(summary_part)).intersection(states)
+        # print(set(article_part))
+        for s in state_intersec:
+            cache_pair[s] += 1
+        for s in set(article_part).intersection(states):
+            cache_doc[s] += 1
+        k += summary_length[i]
+        j += train_length[i]
+    
+    state_prob = cache_pair/cache_doc
+    
+    return state_prob
 
 def extract_summary(tagger, article_sent, l, state_prob = None, summary_train = None):
     """
@@ -311,16 +350,18 @@ def extract_summary(tagger, article_sent, l, state_prob = None, summary_train = 
 
     _ , flat = tagger.viterbi(article_sent, flat = True)
     flat = np.array(flat)
-
-    largest = np.argmax(state_prob)
+    print(flat)
+    largest = np.nanargmax(state_prob)
+    print(largest)
     indices = np.where(flat == largest)[0]
-    # print(indices)
-    # for ind in indices:
-    #     out.add(ind)
     out_l = np.sort(indices)
     summary = []
+    j=0
     for i in out_l:
+        if j > l:
+            break
         summary.append(article_sent[i])
+        j +=1
     return summary
 
 
@@ -332,10 +373,10 @@ def extract_summary(tagger, article_sent, l, state_prob = None, summary_train = 
 #################################################################################################
 
 if __name__ == '__main__':
-    
-    docs,vocab = pickle.load(open("contentHMM_input/contents/News and News Media/News and News Media2.pkl"))
-    tagger = pickle.load(open('test tagger.pkl'))
-    summaries, _ = pickle.load(open("contentHMM_input/contents/News and News Media/News and News Media1.pkl"))
+
+    docs,vocab = pickle.load(open("contentHMM_input/contents/Olympic Games (2000)/Olympic Games (2000)2.pkl"))
+    tagger = pickle.load(open('contentHMM_tagger/contents/Olympic Games (2000).pkl'))
+    summaries, _ = pickle.load(open("contentHMM_input/summaries/Olympic Games (2000)/Olympic Games (2000)1.pkl"))
     # mistake = 0.0
     # for _ in range(10):
     #     i = np.random.random_integers(len(docs)-1)
@@ -346,11 +387,11 @@ if __name__ == '__main__':
      
     # train_all()
 
-    # permutation_test(10,10)
-
+    # permutation_test(15,15)
+    print(dict(Counter(tagger._flat)))
     length = [len(docs[i]) for i in range(len(docs))]
-    print(length)
-    summary = extract_summary(tagger,docs[0],3, summary_train = summaries)
+    # print(length)
+    summary = extract_summary(tagger,docs[1],3, summary_train = summaries)
     print(summary)
 
 
