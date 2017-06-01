@@ -6,13 +6,17 @@ import re
 import json
 import time
 import sys
+import traceback
+import logging
+import exceptions
 
 from content_hmm import *
 
 input_dir = '/home/ml/jliu164/code/contentHMM_input/contents/'
 tagger_dir = '/home/ml/jliu164/code/contentHMM_tagger/contents/'
-root_dir = "/home/ml/jliu164/corpus/nyt_corpus/summary_annotated/"
-choice = 'summary_annotated'
+
+choice = 'content_annotated/'
+root_dir = "/home/ml/jliu164/corpus/nyt_corpus/" + choice
 para_path = tagger_dir+'hyper-para.txt'
 image_dir = '/home/ml/jliu164/code/contentHMM_tagger/Transition Image/contents/'
 fail_path = '/home/ml/jliu164/code/contentHMM_input/fail/'
@@ -103,11 +107,13 @@ def save_input(start,end,low,high):
         try:
             with open(fail_path+topic+"_Failed.txt") as f:
                 failed = set(f.readlines())
-        except:
+        except Exception as e:
+            log_exception(e)
             pass
 
         print(" Processing topic: "+topic)
         subdir = input_dir +topic+'/'
+        # skip existing folders
         if not os.path.exists(subdir):
             os.makedirs(subdir)
         else:
@@ -142,11 +148,11 @@ def train_single(dev_path, train_path,topic):
     except:
         print("Cannot load input develop set: "+dev_path)
         return None
-    delta_1, delta_2 = 0.001, 1
+    delta_1, delta_2 = 0.00001, 1
     emis = range(15)
     tagger = ContentTagger(vocab_dev, emis, None,None, delta_1,delta_2)
+    
     delta_1,delta_2,k,T = tagger.hyper_train(docs_dev,vocab_dev)
-
 
     print("=============== Training.... ============ delta 1, delta 2, k, T:")
     print(delta_1,delta_2,k,T)
@@ -158,6 +164,7 @@ def train_single(dev_path, train_path,topic):
     except:
         print("Cannot load input training set: "+train_path)
         return None
+    
     new_tagger = tagger.train(docs_train, vocab_train, k, T, delta_1, delta_2)
     
     return new_tagger
@@ -180,7 +187,7 @@ def train_all():
             continue
 
         print("=============================================================")
-        print("Training the model for topic "+topic)
+        print("     Training the model for topic "+topic)
         print("=============================================================")
 
         dev_path = input_dir+topic+'/'+topic+'0.pkl'
@@ -189,15 +196,13 @@ def train_all():
 
         try:
             myTagger = train_single(dev_path,train_path,topic)
-        except:
-            print("!!!!!!!Training the model for {} failed! ".format(topic))
-            with open("error_log.txt",'a') as f:
-                f.write(topic+"\n")
-                f.write(sys.exc_info()[0]+"\n")
-            continue
+        except Exception as e:
+            print("!Training the model for {} failed! ".format(topic))
+            log_exception(e)
+            pass
 
         # save the tagger
-        if myTagger:
+        else:
             pickle.dump(myTagger, open(tagger_dir+topic+'.pkl','wb'))
             dur = time.time() - start_time
             hours, rem = divmod(dur, 3600)
@@ -267,8 +272,9 @@ def permutation_test(doc_num, test_num):
             print("Testing with doc {} of length {}...".format(str(i),str(len(test_docs[i]))))
             try:
                 mistake += permutation_test_single(myTagger, test_docs[i], test_num)
-            except:
+            except Exception as e:
                 print("Cannot test this model!")
+                log_exception(e)
                 pass
         
         f = open("Content permutation test result.txt",'a')
@@ -293,18 +299,18 @@ def trans_image(tagger,topic):
 ######################################### Extractive Summary  ##########################################
 ########################################################################################################
 
-def extract_summary_train(tagger,summary_sent):
+def extract_summary_train(tagger,summary_sent, article_sent):
     """
     summary_sent: a list of documents, each is a list of sentences, each sentence is a list of words.
     return: an array of log probability for each topic to appear in summary
     """
-    article_sent = tagger._docs[:]
-    summary_length = [len(i) for i in summary_sent]
-    train_length = [len(i) for i in article_sent]
+    # article_sent = tagger._docs[:]
+    # summary_length = [len(i) for i in summary_sent]
+    # train_length = [len(i) for i in article_sent]
    
-    ptr = min(len(summary_sent),len(article_sent))
-    summary_sent = summary_sent[:ptr]
-    article_sent = article_sent[:ptr]
+    # ptr = min(len(summary_sent),len(article_sent))
+    # summary_sent = summary_sent[:ptr]
+    # article_sent = article_sent[:ptr]
 
     summary_length = [len(i) for i in summary_sent]
     train_length = [len(i) for i in article_sent]
@@ -334,31 +340,32 @@ def extract_summary_train(tagger,summary_sent):
         k += summary_length[i]
         j += train_length[i]
     
+    # print(cache_pair)
+    # print(cache_doc)
     state_prob = cache_pair/cache_doc
     
     return state_prob
 
-def extract_summary(tagger, article_sent, l, state_prob = None, summary_train = None):
+def extract_summary(tagger, article_sent, l, summary_train , article_train):
     """
-    Given an article, produce length-l summary
+    Given an article(a list of article), produce length-l summary
     return: a list of sentences as summary
     """
-    if state_prob is None and summary_train:
-        state_prob = extract_summary_train(tagger, summary_train)
-    elif state_prob is None and not summary_train:
-        print(" Please either give summaries to train on or a existing topic probability ndarray!")
-        exit(1)
+    if (len(summary_train) != len(article_train)):
+        print(" Number of summaries have to match number of documents!")
 
+    state_prob = extract_summary_train(tagger, summary_train, article_train)
+    print(state_prob)
     _ , flat = tagger.viterbi(article_sent, flat = True)
+
     flat = np.array(flat)
-    print(flat)
-    largest = np.nanargmax(state_prob)
-    print(largest)
-    indices = np.where(flat == largest)[0]
-    out_l = np.sort(indices)
+    print("Article clustering: "+str(flat))
+
+    indices = np.where(flat == np.nanargmax(state_prob))[0]
+
     summary = []
     j=0
-    for i in out_l:
+    for i in indices:
         if j > l:
             break
         summary.append(article_sent[i])
@@ -366,12 +373,21 @@ def extract_summary(tagger, article_sent, l, state_prob = None, summary_train = 
     return summary
 
 
-
-
-
 #################################################################################################
 #########################################   Testing    ##########################################
 #################################################################################################
+
+def token_to_sent(tokens):
+    """
+    convert a list of words into sentence
+    """
+    return (" ").join(tokens)
+
+def sent_to_article(sents):
+    """
+    convert a list of sentences into a document
+    """
+    return (".").join(sents)
 
 # print all the tagger information under path
 def print_all():
@@ -390,21 +406,64 @@ def print_all():
         out.append(tagger)
     return out
 
+
 # test the permutation test
 def test_permutation():
     docs,vocab = pickle.load(open("contentHMM_input/contents/Olympic Games (2000)/Olympic Games (2000)2.pkl"))
     tagger = pickle.load(open('contentHMM_tagger/contents/Olympic Games (2000).pkl'))
-    # summaries, _ = pickle.load(open("contentHMM_input/summaries/Olympic Games (2000)/Olympic Games (2000)1.pkl"))
-    # mistake = 0.0
     for _ in range(10):
         i = np.random.random_integers(len(docs)-1)
         print("Test on doc # "+str(i))
         print("Test doc has # sentences: "+str(len(docs[i])))
-        mistake = permutation_test_single(tagger,docs[i],20)
+        permutation_test_single(tagger,docs[i],20)
 
+
+
+def test_extract_summary(topic):
+    docs,_ = pickle.load(open("contentHMM_input/contents/"+topic+"/"+topic+"2.pkl"))
+    tagger = pickle.load(open('contentHMM_tagger/contents_2/'+topic+".pkl"))
+    summaries_train, _ = pickle.load(open("contentHMM_input/summaries/"+topic+"/"+topic+"1.pkl"))
+    contents_train, _ = pickle.load(open("contentHMM_input/contents/"+topic+"/"+topic+"1.pkl"))
+    valid, _ = pickle.load(open("contentHMM_input/summaries/"+topic+"/"+topic+"2.pkl"))
+    
+    length = [len(docs[i]) for i in range(len(docs))]
+    # print(tagger._m)
+    print(length)
+    summary = extract_summary(tagger,docs[4],5, summary_train = summaries_train, article_train = contents_train)
+    
+    print(sent_to_article([token_to_sent(i) for i in summary]))
+
+    # print(">>>> Actual Summary:")
+    # print(sent_to_article([token_to_sent(i) for i in valid[2]]))
+
+
+############################################### Set up logging ############################################
+def setup_logging_to_file(filename):
+    logging.basicConfig( filename=filename,
+                         filemode='w',
+                         level=logging.DEBUG,
+                         format= '%(asctime)s - %(levelname)s - %(message)s',)
+
+
+def log_exception(e):
+    logging.error(
+    "Function {function_name} raised {exception_class} ({exception_docstring}): {exception_message}".format(
+    function_name = extract_function_name(), #this is optional
+    exception_class = e.__class__,
+    exception_docstring = e.__doc__,
+    exception_message = e.message))
+
+def extract_function_name():
+    tb = sys.exc_info()[-1]
+    stk = traceback.extract_tb(tb, 1)
+    fname = stk[0][3]
+    return fname
 
 if __name__ == '__main__':
+    
+    setup_logging_to_file("main.log")
 
+    # test_extract_summary("Awards, Decorations and Honors")
     # test_permutation()
 
     # train_all()
@@ -413,14 +472,11 @@ if __name__ == '__main__':
 
     # print_all()
 
-    # print(dict(Counter(tagger._flat)))
-    # length = [len(docs[i]) for i in range(len(docs))]
-    # print(length)
-    # summary = extract_summary(tagger,docs[1],3, summary_train = summaries)
-    # print(summary)
-
     # tagger = pickle.load(open("Olympic Games random.pkl"))
     # tagger.print_info()
     # docs,vocab = pickle.load(open("contentHMM_input/contents/Olympic Games (2000)/Olympic Games (2000)2.pkl"))
     # c,f = tagger.viterbi(docs[3],flat = True)
     # print(dict(Counter(f)))
+    save_input(2000,2001,400,600)
+
+    

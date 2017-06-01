@@ -285,15 +285,13 @@ class ContentTagger():
         """
         Given the development set of doc and vocab, return the best set of hyper parameter for the trainer of this topic
         """
-        delta_1 = np.random.uniform(0.000000001,0.00001)
-        delta_2 = np.random.uniform(1,10)
-        k = np.random.random_integers(30,80)
-        t = np.random.random_integers(3,10)
+        # initialize with random
+        delta_1, delta_2,k,t = 8.540521424087841e-06, 3.838926568996177, 58, 4
 
         trainer = ContentTaggerTrainer(docs, vocab, k, t, delta_1, delta_2)
         tree = trainer._tree
 
-        print(">> Initial Clustering:")
+        print(">> Initial Clustering for hyper:")
         print(dict(Counter(trainer._flat)))
 
         last_log = -np.inf
@@ -301,14 +299,14 @@ class ContentTagger():
         while i<30:
             delta_1 = np.random.uniform(0.0000001,0.00001)
             delta_2 = np.random.uniform(0.1,10)
-            k = np.random.random_integers(10,50)
-            t = np.random.random_integers(3,10)
+            k = np.random.random_integers(35,100)
+            t = np.random.random_integers(2,5)
             print("++++++++++++++ Sampling #"+str(i)+"+++++++++++++++")
             
             trainer.adjust_tree(k, tree, t,delta_1,delta_2)
             
-            print(" Training model with hyper parameters ", delta_1, delta_2 , k, t)
-            print(len(trainer._emis))
+            print(" Training model with hyper parameters: ", delta_1, delta_2 , k, t)
+            print("# Clusters: "+str(len(trainer._emis)))
             # try:
             #     new_model = trainer.train_unsupervised(30,1e-8)
             # except Exception:
@@ -335,6 +333,8 @@ class ContentTagger():
         """
 
         trainer = ContentTaggerTrainer(docs, vocab, k, T, delta_1, delta_2)
+        print(">> Initial Clustering while training:")
+        print(dict(Counter(trainer._flat)))
         model = trainer.train_unsupervised(max_iter, converg_logprob)
         return model
 
@@ -373,6 +373,7 @@ class ContentTaggerTrainer():
         cluster ,flat_c = make_clusters(flat_docs,self._tree, k)
         # self._clusters is a list of clusters, each containing a list of sentences, each containing a list of words
         self._clusters,self._flat = filter_etc(cluster,flat_c, T) 
+        
         
         self._m = len(self._clusters) # cluster[m-1] is the etc cluster
         self._vocab = vocab # vocab doesn't contain START/END
@@ -541,17 +542,18 @@ if __name__ == '__main__':
     # print(trainer._flat)
 
     import pickle
-    train_path = "contentHMM_input/contents/News and News Media/News and News Media0.pkl"
-    docs,vocab = pickle.load(open(train_path))
-    delta_1,delta_2,k,T = 0.021665726605398998, 0.5116140306128781, 20, 4
+    dev_path = "contentHMM_input/contents/Olympic Games/Olympic Games0.pkl"
+    docs,vocab = pickle.load(open(dev_path))
+    delta_1,delta_2,k,T = 0.021665726605398998, 0.5116140306128781, 30, 4
     emis = range(15)
     tagger = ContentTagger(vocab, emis, None,None, delta_1,delta_2)
+
     delta_1,delta_2,k,T = tagger.hyper_train(docs,vocab)
-    print("Line 539")
-    train_docs, train_vocab = "contentHMM_input/contents/News and News Media/News and News Media1.pkl"
+    
+    train_docs, train_vocab = pickle.load(open("contentHMM_input/contents/Olympic Games/Olympic Games1.pkl"))
     new_tagger = tagger.train(train_docs, train_vocab, k, T, delta_1, delta_2)
 
-    test_doc, test_vocab = "contentHMM_input/contents/News and News Media/News and News Media2.pkl"
+    test_doc, test_vocab = "contentHMM_input/contents/Olympic Games/Olympic Games2.pkl"
     alpha = new_tagger.forward(test_doc)
     logprob = logsumexp(alpha[-1])
     print(logprob)
