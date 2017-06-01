@@ -16,6 +16,7 @@ START_SENT = "**START_SENT**"
 START_DOC = "**START_DOC**"
 END_SENT = "**END_SENT**"
 UNK = "**UNK**"
+GAMMA = 0.2
 
 ########################################################################################################
 ################################# Create k clusters to initialize ######################################
@@ -284,9 +285,9 @@ class ContentTagger():
         """
         Given the development set of doc and vocab, return the best set of hyper parameter for the trainer of this topic
         """
-        delta_1 = np.random.uniform(0.0000001,0.01)
-        delta_2 = np.random.uniform(0.1,10)
-        k = np.random.random_integers(10,50)
+        delta_1 = np.random.uniform(0.000000001,0.00001)
+        delta_2 = np.random.uniform(1,10)
+        k = np.random.random_integers(30,80)
         t = np.random.random_integers(3,10)
 
         trainer = ContentTaggerTrainer(docs, vocab, k, t, delta_1, delta_2)
@@ -298,7 +299,7 @@ class ContentTagger():
         last_log = -np.inf
         i = 0
         while i<30:
-            delta_1 = np.random.uniform(0.0000001,0.01)
+            delta_1 = np.random.uniform(0.0000001,0.00001)
             delta_2 = np.random.uniform(0.1,10)
             k = np.random.random_integers(10,50)
             t = np.random.random_integers(3,10)
@@ -421,15 +422,19 @@ class ContentTaggerTrainer():
         for i in range(len(self._docs)):
             length = len(self._docs[i])
             c_index = self._flat[ptr:ptr+length]
-            # for count in set(c_index):
-            #     D_c[count] += 1
             for m,n in set(bigrams(c_index)):
                 D_c_ij[m,n]+=1
             ptr+=length
         norm = np.sum(D_c_ij, axis = 1)
         
         out = (D_c_ij.T+self._delta_2)/(norm+self._delta_2*self._m)
-        return np.log(out.T)
+        out = np.log(out.T)
+
+        # add stickiness: [i,j] = gamma*1(i=j) + (1-gamma) * P(Si|Sj)
+        sticky = np.identity(self._m)* GAMMA
+        out = (1 - GAMMA) * out + sticky
+
+        return out
 
     ############################################ Prior Probability  ###################################
     def prior(self):

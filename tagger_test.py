@@ -214,23 +214,15 @@ def permutation_test_single(test_tagger, test_doc, num):
     """
     Given a tagger, test on a document/article
     """
-    # vocabs = [set(i) for i in test_doc]
-    # vocab = reduce(lambda a,b:a.union(b),vocabs)
-    # vocab.discard(START_SENT)
-    # vocab.discard(START_DOC)
-    # vocab.discard(END_SENT)
-    # tagger.print_info()
-    
     alpha = test_tagger.forward_algo(test_doc, flat = True)
     logprob = logsumexp(alpha[-1])
     # print("Original logprob: "+str(logprob))
     mistake = 0 
     for i in range(num):
-        # shuffle sentence in doc
         np.random.shuffle(test_doc)
-        # test_tagger._clusters, test_tagger.flat = test_tagger.viterbi(test_doc, flat = True)
-        alpha_shuffle= test_tagger.forward_algo(test_doc)
-        perm_logprob = logsumexp(alpha_shuffle[-1])
+        alpha = test_tagger.forward_algo(test_doc, flat = True)
+        perm_logprob = logsumexp(alpha[-1])
+
         # print("After shuffle the log prob is:"+str(perm_logprob))
         if logprob < perm_logprob:
             mistake +=1
@@ -246,8 +238,9 @@ def permutation_test(doc_num, test_num):
     """
     inputs = os.listdir(input_dir)
     taggers = os.listdir(tagger_dir)
-    mistake = 0
+    
     for topic in inputs:
+        mistake = 0
 
         print("=============================================================")
         print("Testing the model for topic "+topic)
@@ -278,9 +271,9 @@ def permutation_test(doc_num, test_num):
                 print("Cannot test this model!")
                 pass
         
-    f = open("Content permutation test result.txt",'a')
-    f.write("For topic "+topic+", mistake rate is" + str(float(mistake)/(test_num*doc_num)))
-    f.close()
+        f = open("Content permutation test result.txt",'a')
+        f.write(topic+", mistake #: " + str(mistake)+'\n')
+        f.close()
         
 
 
@@ -380,22 +373,45 @@ def extract_summary(tagger, article_sent, l, state_prob = None, summary_train = 
 #########################################   Testing    ##########################################
 #################################################################################################
 
-if __name__ == '__main__':
+# print all the tagger information under path
+def print_all():
+    path =  '/home/ml/jliu164/code/contentHMM_tagger/contents/'
+    taggers = os.listdir(path)
+    out = []
+    for tagger_path in taggers:
+        p= path + tagger_path
+        if p.split(".")[-1] != 'pkl':
+            continue
+        print("\n=====================================================")
+        print(" Printing Tagger Info for "+tagger_path)
+        print("=====================================================")
+        tagger = pickle.load(open(p))
+        tagger.print_info()
+        out.append(tagger)
+    return out
 
-    # docs,vocab = pickle.load(open("contentHMM_input/contents/Olympic Games (2000)/Olympic Games (2000)2.pkl"))
-    # tagger = pickle.load(open('contentHMM_tagger/contents/Olympic Games (2000).pkl'))
+# test the permutation test
+def test_permutation():
+    docs,vocab = pickle.load(open("contentHMM_input/contents/Olympic Games (2000)/Olympic Games (2000)2.pkl"))
+    tagger = pickle.load(open('contentHMM_tagger/contents/Olympic Games (2000).pkl'))
     # summaries, _ = pickle.load(open("contentHMM_input/summaries/Olympic Games (2000)/Olympic Games (2000)1.pkl"))
     # mistake = 0.0
-    # for _ in range(10):
-    #     i = np.random.random_integers(len(docs)-1)
-    #     print("Test on doc # "+str(i))
-    #     print("Test doc has # sentences: "+str(len(docs[i])))
-    #     mistake = permutation_test_single(tagger,docs[i],20)
-    # print("Final: "+str(mistake/(len(docs)*20)))
-     
-    train_all()
+    for _ in range(10):
+        i = np.random.random_integers(len(docs)-1)
+        print("Test on doc # "+str(i))
+        print("Test doc has # sentences: "+str(len(docs[i])))
+        mistake = permutation_test_single(tagger,docs[i],20)
+
+
+if __name__ == '__main__':
+
+    # test_permutation()
+
+    # train_all()
 
     # permutation_test(15,15)
+
+    # print_all()
 
     # print(dict(Counter(tagger._flat)))
     # length = [len(docs[i]) for i in range(len(docs))]
@@ -403,11 +419,8 @@ if __name__ == '__main__':
     # summary = extract_summary(tagger,docs[1],3, summary_train = summaries)
     # print(summary)
 
-
-   # dev_path = "contentHMM_input/contents/Olympic Games (2000)/Olympic Games (2000)0.pkl"
-   # train_path = "contentHMM_input/contents/Olympic Games (2000)/Olympic Games (2000)1.pkl"
-   # tag = train_single(dev_path,train_path,"WednesdayAfternoon3")
-   # delta1, delta2, k, T = 5.7774778572996404e-05, 6.155334807363642, 38, 4
-   # # docs_train, vocab_train = pickle.load(open(train_path,'rb'))
-   
-   # pickle.dump(tag,open("Olympic Games random.pkl",'wb'))
+    # tagger = pickle.load(open("Olympic Games random.pkl"))
+    # tagger.print_info()
+    # docs,vocab = pickle.load(open("contentHMM_input/contents/Olympic Games (2000)/Olympic Games (2000)2.pkl"))
+    # c,f = tagger.viterbi(docs[3],flat = True)
+    # print(dict(Counter(f)))
