@@ -110,8 +110,9 @@ def save_input(start,end,low,high):
         except Exception as e:
             log_exception(e)
             pass
-
+        print("\n=====================================================")
         print(" Processing topic: "+topic)
+        print("=====================================================")
         subdir = input_dir +topic+'/'
         # skip existing folders
         if not os.path.exists(subdir):
@@ -142,21 +143,17 @@ def save_input(start,end,low,high):
             print(" All {} articles saved! " .format(len(docs)))
             output.close()
 
+########################################################################################################
+#########################################   Model Training  ############################################
+########################################################################################################
+
 def train_single(dev_path, train_path,topic):
     try:
         docs_dev,vocab_dev = pickle.load(open(dev_path,'rb'))
     except:
         print("Cannot load input develop set: "+dev_path)
         return None
-    delta_1, delta_2 = 0.00001, 1
-    emis = range(15)
-    tagger = ContentTagger(vocab_dev, emis, None,None, delta_1,delta_2)
     
-    delta_1,delta_2,k,T = tagger.hyper_train(docs_dev,vocab_dev)
-
-    print("=============== Training.... ============ delta 1, delta 2, k, T:")
-    print(delta_1,delta_2,k,T)
-    para = {topic:(delta_1,delta_2,k,T)}
     with open(para_path,'a') as f:
         f.write(str(para)+'\n')
     try:
@@ -165,7 +162,7 @@ def train_single(dev_path, train_path,topic):
         print("Cannot load input training set: "+train_path)
         return None
     
-    new_tagger = tagger.train(docs_train, vocab_train, k, T, delta_1, delta_2)
+    new_tagger = hyper_train(docs_train, vocab_train, docs_dev)
     
     return new_tagger
 
@@ -244,10 +241,14 @@ def permutation_test(doc_num, test_num):
     inputs = os.listdir(input_dir)
     taggers = os.listdir(tagger_dir)
     
-    for topic in inputs:
+    
+    for topic_file in taggers:
+        if topic_file.split(".")[-1] != 'pkl':
+            continue
+        topic = topic_file.split(".")[0]
         mistake = 0
 
-        print("=============================================================")
+        print("\n=============================================================")
         print("Testing the model for topic "+topic)
         print("=============================================================")
         test_path = input_dir+topic+'/'+topic+'2.pkl'
@@ -264,8 +265,6 @@ def permutation_test(doc_num, test_num):
             print("Model isn't available!")
             continue
 
-        trans_image(myTagger,topic)
-
         for _ in range(doc_num):
             i = np.random.random_integers(len(test_docs)-1)
 
@@ -277,7 +276,7 @@ def permutation_test(doc_num, test_num):
                 log_exception(e)
                 pass
         
-        f = open("Content permutation test result.txt",'a')
+        f = open("Results/permutation test result.txt",'a')
         f.write(topic+", mistake #: " + str(mistake)+'\n')
         f.close()
         
@@ -289,6 +288,9 @@ def trans_image(tagger,topic):
     """
     import matplotlib.pyplot as plt
     from matplotlib.pyplot import cm
+    if not os.path.exists(image_dir):
+        os.makedirs(image_dir)
+
     plt.imshow(tagger._trans, cmap = cm.Greys,interpolation = 'nearest')
     plt.title(topic)
     plt.savefig(image_dir + topic+'.jpg')
@@ -373,6 +375,60 @@ def extract_summary(tagger, article_sent, l, summary_train , article_train):
     return summary
 
 
+############################################## Model Training ############################################
+
+def hyper_train(docs_train, vocab_train, docs_dev, sample_size = 30):
+    """
+    Given the development set of doc and vocab, return the best set of hyper parameter for the trainer of this topic
+    """
+    out = None
+    last_score = -np.inf
+    # initialize with random
+    delta_1, delta_2,k,t = 8.540521424087841e-06, 3.838926568996177, 50, 4
+    # train the model
+    trainer = ContentTaggerTrainer(docs_train, vocab_train, k, t, delta_1, delta_2)
+    tree = trainer._tree
+
+    # sample 30 times
+    for j in range(sample_size):
+        print("++++++++++++++ Sampling #"+str(j)+"+++++++++++++++")
+        print(" Training model with hyper parameters: ", delta_1, delta_2 , k, t)
+        print(">> Initial Clustering for hyper_train:")
+        print(dict(Counter(trainer._flat)))
+
+        model = trainer.train_unsupervised()
+
+        # test on dev set
+        alpha = model.forward_algo(docs_dev)
+        logprob = logsumexp(alpha[-1])
+        perm_mistake = 0
+        for _ in range(10):
+            i = np.random.random_integers(len(docs_dev)-1)
+            print("Testing with doc {} of length {}...".format(str(i),str(len(docs_dev[i]))))
+            perm_mistake += permutation_test_single(model, docs_dev[i], 15)
+
+
+        score_arr = np.array([logprob, 0.5*float(perm_mistake)/150])
+        score = logsumexp(score_arr)
+
+        # compare scores
+        if score > last_score:
+            last_score = score
+            print(">>>>Improve model and hyperparameter to: ",delta1,delta2,K,T)
+            out = model
+
+
+        # make a new model
+        delta_1 = np.random.uniform(0.0000001,0.000001)
+        delta_2 = np.random.uniform(1,10)
+        k = np.random.random_integers(10,50)
+        t = np.random.random_integers(2,7)
+
+        trainer.adjust_tree(k, tree, t,delta_1,delta_2)
+
+    return out
+
+
 #################################################################################################
 #########################################   Testing    ##########################################
 #################################################################################################
@@ -390,8 +446,7 @@ def sent_to_article(sents):
     return (".").join(sents)
 
 # print all the tagger information under path
-def print_all():
-    path =  '/home/ml/jliu164/code/contentHMM_tagger/contents/'
+def print_all(path):
     taggers = os.listdir(path)
     out = []
     for tagger_path in taggers:
@@ -399,10 +454,11 @@ def print_all():
         if p.split(".")[-1] != 'pkl':
             continue
         print("\n=====================================================")
-        print(" Printing Tagger Info for "+tagger_path)
+        print("   Tagger Info for "+tagger_path)
         print("=====================================================")
         tagger = pickle.load(open(p))
         tagger.print_info()
+        trans_image(tagger,tagger_path.split("/")[-1])
         out.append(tagger)
     return out
 
@@ -437,7 +493,8 @@ def test_extract_summary(topic):
     # print(sent_to_article([token_to_sent(i) for i in valid[2]]))
 
 
-############################################### Set up logging ############################################
+
+             ###################### Set up logging ###################
 def setup_logging_to_file(filename):
     logging.basicConfig( filename=filename,
                          filemode='w',
@@ -459,24 +516,40 @@ def extract_function_name():
     fname = stk[0][3]
     return fname
 
-if __name__ == '__main__':
+def test_hyper_train():
+
+    dev_path = "contentHMM_input/contents/Olympic Games/Olympic Games0.pkl"
+    dev_docs,_ = pickle.load(open(dev_path))
     
+    train_docs, train_vocab = pickle.load(open("contentHMM_input/contents/Olympic Games/Olympic Games1.pkl"))
+    new_tagger = hyper_train(train_docs, train_vocab, dev_docs)
+
+    test_doc, test_vocab = "contentHMM_input/contents/Olympic Games/Olympic Games2.pkl"
+    alpha = new_tagger.forward(test_doc)
+    logprob = logsumexp(alpha[-1])
+    print(logprob)
+    # pickle.dump(tagger, open("test tagger.pkl",'wb'))
+
+
+if __name__ == '__main__':    
     setup_logging_to_file("main.log")
 
     # test_extract_summary("Awards, Decorations and Honors")
     # test_permutation()
+    test_hyper_train()
 
     # train_all()
 
     # permutation_test(15,15)
 
-    # print_all()
+    # print_all('/home/ml/jliu164/code/contentHMM_tagger/contents/')
 
     # tagger = pickle.load(open("Olympic Games random.pkl"))
     # tagger.print_info()
     # docs,vocab = pickle.load(open("contentHMM_input/contents/Olympic Games (2000)/Olympic Games (2000)2.pkl"))
     # c,f = tagger.viterbi(docs[3],flat = True)
     # print(dict(Counter(f)))
-    save_input(2000,2001,400,600)
+
+    # save_input(2000,2001,400,600)
 
     
