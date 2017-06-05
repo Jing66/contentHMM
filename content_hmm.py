@@ -474,20 +474,8 @@ class ContentTaggerTrainer():
         return model
 
     def adjust_tree(self, k, tree,T, delta_1, delta_2 ): 
-        #Given tree, k,T, adjust probabilities according to new cluster 
-        # self._tree = tree
-        # flat_docs = [i for di in self._docs for i in di]
-        # cluster ,flat_c = make_clusters(flat_docs,self._tree, k)
-        # self._clusters,self._flat = filter_etc(cluster,flat_c, T)
-        # self._m = len(self._clusters)
-        
-        # self._delta_1 = delta_1
-        # self._delta_2 = delta_2
-
-        # self._priors = self.prior()
-        # self._trans = self.trans_prob()
-        # self._emis = self.emission_prob_all()
-
+        #Given tree, k,T, adjust probabilities according to new cluster, return a new trainer
+       
         new_trainer = ContentTaggerTrainer(self._docs, self._vocab, k, T, delta_1, delta_2,tree)
         return new_trainer
 

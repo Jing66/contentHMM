@@ -185,10 +185,10 @@ def _train((delta_1,delta_2,k,t,tree,trainer,j,docs_dev)):
     # return (score,model) of a trained model tested on dev set
     print("++++++++++++++ Sampling #"+str(j)+"+++++++++++++++")
     print(" Training model with hyper parameters: ", delta_1, delta_2 , k, t)
-    print(">> Initial Clustering for hyper_train:")
-    print(dict(Counter(trainer._flat)))
 
     new_trainer = trainer.adjust_tree(k, tree, t,delta_1,delta_2)
+    print(">> Initial Clustering for hyper_train:")
+    print(dict(Counter(new_trainer._flat)))
     
     model = new_trainer.train_unsupervised()
 
