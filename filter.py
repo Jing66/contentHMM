@@ -23,8 +23,9 @@ def filter_length(dicts):
 
 	results = pool.map(filter_topic, itertools.izip(dicts.keys(), dicts.values()))
 	# results: [(topic, avg doc length, std, avg summary length, std, #long summary)]
+	pool.close()
+	pool.join()
 	return results
-
 
 def filter_topic((k,v)):
 	"""
@@ -72,8 +73,6 @@ def filter_topic((k,v)):
 
 
 
-
-
 def show_graph(doc_mean, doc_std, sum_mean, sum_std, topics):
 	"""
 	Given 4 lists of same length, plot bar chart
@@ -107,8 +106,20 @@ def show_graph(doc_mean, doc_std, sum_mean, sum_std, topics):
 
 
 if __name__ == '__main__':
-	inputs = group_files(2000,2002,400,3000)
+	inputs = group_files(1997,2000,450,3000)
 	print(inputs.keys())
 	
-	result = filter_length(inputs)
-	pickle.dump(result, open("2000-2002result.pkl",'wb'))
+	results = filter_length(inputs)
+	pickle.dump(results, open("1997-2000result.pkl",'wb'))
+
+	# topics = [r[0] for r in results ]
+	# article_mean = [r[1] for r in results]
+	# article_dev = [r[2] for r in results]
+	# sum_mean = [r[3] for r in results]
+	# sum_dev = [r[4] for r in results]
+	# long_sum = [r[5] for r in results]
+
+	# print(topics)
+	# print(article_mean)
+	# print(sum_mean)
+	# print(long_sum)

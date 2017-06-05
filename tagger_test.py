@@ -9,8 +9,10 @@ import sys
 import traceback
 import logging
 import exceptions
+import itertools
 
 from content_hmm import *
+from multiprocessing.dummy import Pool as ThreadPool
 
 input_dir = '/home/ml/jliu164/code/contentHMM_input/contents/'
 tagger_dir = '/home/ml/jliu164/code/contentHMM_tagger/contents/'
@@ -146,25 +148,65 @@ def save_input(start,end,low,high):
 ########################################################################################################
 #########################################   Model Training  ############################################
 ########################################################################################################
+def hyper_train(docs_train, vocab_train, docs_dev, topic, sample_size = 20):
+    """
+    Given the development set of doc and vocab, return the best set of hyper parameter for the trainer of this topic
+    """
+    
+    last_score = -np.inf
+    # initialize with random numpy arrays of size sample_size
+    delta_1 = np.random.uniform(low = 0.0000001, high = 0.001)
+    k = np.random.randint(10,high =50)
+    t = np.random.randint(2,high =7)
+    delta_2 = np.random.uniform(low = 0.1, high = 10) # (0.1,10)
 
-def train_single(dev_path, train_path,topic):
-    try:
-        docs_dev,vocab_dev = pickle.load(open(dev_path,'rb'))
-    except:
-        print("Cannot load input develop set: "+dev_path)
-        return None
+    # train the model
+    trainer = ContentTaggerTrainer(docs_train, vocab_train, k, t, delta_1, delta_2)
+    tree = trainer._tree
+    pickle.dump(trainer, open("contentHMM_tagger/topic_init/"+topic+"_trainer_init.pkl",'wb'))
+
+    delta_1 = np.random.uniform(low = 0.0000001, high = 0.001, size = sample_size)
+    k = np.random.randint(10,high =50,size = sample_size)
+    t = np.random.randint(2,high =7,size = sample_size)
+    delta_2 = np.random.uniform(low = 0.1, high = 10, size = sample_size) # (0.1,10)
+
+    # create thread pool
+    pool = ThreadPool(5)
+    results = pool.map(_train, itertools.izip(delta_1,delta_2,k,t,itertools.repeat(tree), itertools.repeat(trainer),range(sample_size),itertools.repeat(docs_dev)))
+    pool.close()
+    pool.join()
     
-    with open(para_path,'a') as f:
-        f.write(str(para)+'\n')
-    try:
-        docs_train, vocab_train = pickle.load(open(train_path,'rb'))
-    except:
-        print("Cannot load input training set: "+train_path)
-        return None
+    pairs = dict(results)
+    best_score = max(pairs.keys()) 
+    out = pairs[best_score]  
+    return out
+
+def _train((delta_1,delta_2,k,t,tree,trainer,j,docs_dev)):
+    # return (score,model) of a trained model tested on dev set
+    print("++++++++++++++ Sampling #"+str(j)+"+++++++++++++++")
+    print(" Training model with hyper parameters: ", delta_1, delta_2 , k, t)
+    print(">> Initial Clustering for hyper_train:")
+    print(dict(Counter(trainer._flat)))
+
+    new_trainer = trainer.adjust_tree(k, tree, t,delta_1,delta_2)
     
-    new_tagger = hyper_train(docs_train, vocab_train, docs_dev)
-    
-    return new_tagger
+    model = new_trainer.train_unsupervised()
+
+    # test on dev set
+    alpha = model.forward_algo(docs_dev)
+    logprob = logsumexp(alpha[-1])
+    print("log prob on dev set"+str(logprob))
+
+    perm_mistake = 0
+    # for _ in range(10):
+    #     i = np.random.random_integers(0,len(docs_dev)-1)
+    #     print("Testing with doc {} of length {}...".format(str(i),str(len(docs_dev[i]))))
+    #     perm_mistake += permutation_test_single(model, docs_dev[i], 15)
+
+    # print("permutation mistake:" +str(perm_mistake))
+    # score_arr = np.array([logprob, 0.5*float(perm_mistake)/150])
+    # score = logsumexp(score_arr)
+    return logprob,model
 
 
 def train_all():
@@ -174,7 +216,8 @@ def train_all():
     if not os.path.exists(tagger_dir):
         os.makedirs(tagger_dir)
 
-    inputs = os.listdir(input_dir)
+    # inputs = os.listdir(input_dir)
+    inputs = ['Olympic Games','Olympic Games (2000)','Summer Games (Olympics)','Teachers ahd School Employees']
     # get all topics data input
     for topic in inputs:
         start_time = time.time()
@@ -184,27 +227,33 @@ def train_all():
             continue
 
         print("=============================================================")
-        print("     Training the model for topic "+topic)
+        print(">>   Training the model for topic "+topic)
         print("=============================================================")
 
         dev_path = input_dir+topic+'/'+topic+'0.pkl'
         train_path = input_dir+topic+'/'+topic+"1.pkl"
-        test_path = input_dir+topic+'/'+topic+'2.pkl'
 
         try:
-            myTagger = train_single(dev_path,train_path,topic)
+            dev_docs, _ = pickle.load(open(dev_path))
+            docs_train, vocab_train = pickle.load(open(train_path))
+        except:
+            print("   Training or development data not available!")
+            continue
+
+        try:
+            myTagger = hyper_train(docs_train, vocab_train, dev_docs, topic)
         except Exception as e:
             print("!Training the model for {} failed! ".format(topic))
             log_exception(e)
             pass
-
         # save the tagger
         else:
-            pickle.dump(myTagger, open(tagger_dir+topic+'.pkl','wb'))
             dur = time.time() - start_time
             hours, rem = divmod(dur, 3600)
             minutes, seconds = divmod(rem, 60)
             print("Model trained in {} hours, {} minutes, {} seconds".format(int(hours),int(minutes),int(seconds)))
+    
+            pickle.dump(myTagger, open(tagger_dir+topic+'.pkl','wb'))
             print
 
 
@@ -266,7 +315,7 @@ def permutation_test(doc_num, test_num):
             continue
 
         for _ in range(doc_num):
-            i = np.random.random_integers(len(test_docs)-1)
+            i = np.random.random_integers(0,len(test_docs)-1)
 
             print("Testing with doc {} of length {}...".format(str(i),str(len(test_docs[i]))))
             try:
@@ -306,14 +355,6 @@ def extract_summary_train(tagger,summary_sent, article_sent):
     summary_sent: a list of documents, each is a list of sentences, each sentence is a list of words.
     return: an array of log probability for each topic to appear in summary
     """
-    # article_sent = tagger._docs[:]
-    # summary_length = [len(i) for i in summary_sent]
-    # train_length = [len(i) for i in article_sent]
-   
-    # ptr = min(len(summary_sent),len(article_sent))
-    # summary_sent = summary_sent[:ptr]
-    # article_sent = article_sent[:ptr]
-
     summary_length = [len(i) for i in summary_sent]
     train_length = [len(i) for i in article_sent]
 
@@ -373,60 +414,6 @@ def extract_summary(tagger, article_sent, l, summary_train , article_train):
         summary.append(article_sent[i])
         j +=1
     return summary
-
-
-############################################## Model Training ############################################
-
-def hyper_train(docs_train, vocab_train, docs_dev, sample_size = 30):
-    """
-    Given the development set of doc and vocab, return the best set of hyper parameter for the trainer of this topic
-    """
-    out = None
-    last_score = -np.inf
-    # initialize with random
-    delta_1, delta_2,k,t = 8.540521424087841e-06, 3.838926568996177, 50, 4
-    # train the model
-    trainer = ContentTaggerTrainer(docs_train, vocab_train, k, t, delta_1, delta_2)
-    tree = trainer._tree
-
-    # sample 30 times
-    for j in range(sample_size):
-        print("++++++++++++++ Sampling #"+str(j)+"+++++++++++++++")
-        print(" Training model with hyper parameters: ", delta_1, delta_2 , k, t)
-        print(">> Initial Clustering for hyper_train:")
-        print(dict(Counter(trainer._flat)))
-
-        model = trainer.train_unsupervised()
-
-        # test on dev set
-        alpha = model.forward_algo(docs_dev)
-        logprob = logsumexp(alpha[-1])
-        perm_mistake = 0
-        for _ in range(10):
-            i = np.random.random_integers(len(docs_dev)-1)
-            print("Testing with doc {} of length {}...".format(str(i),str(len(docs_dev[i]))))
-            perm_mistake += permutation_test_single(model, docs_dev[i], 15)
-
-
-        score_arr = np.array([logprob, 0.5*float(perm_mistake)/150])
-        score = logsumexp(score_arr)
-
-        # compare scores
-        if score > last_score:
-            last_score = score
-            print(">>>>Improve model and hyperparameter to: ",delta1,delta2,K,T)
-            out = model
-
-
-        # make a new model
-        delta_1 = np.random.uniform(0.0000001,0.000001)
-        delta_2 = np.random.uniform(1,10)
-        k = np.random.random_integers(10,50)
-        t = np.random.random_integers(2,7)
-
-        trainer.adjust_tree(k, tree, t,delta_1,delta_2)
-
-    return out
 
 
 #################################################################################################
@@ -518,17 +505,20 @@ def extract_function_name():
 
 def test_hyper_train():
 
+    start_time = time.time()
+
     dev_path = "contentHMM_input/contents/Olympic Games/Olympic Games0.pkl"
     dev_docs,_ = pickle.load(open(dev_path))
     
     train_docs, train_vocab = pickle.load(open("contentHMM_input/contents/Olympic Games/Olympic Games1.pkl"))
     new_tagger = hyper_train(train_docs, train_vocab, dev_docs)
 
-    test_doc, test_vocab = "contentHMM_input/contents/Olympic Games/Olympic Games2.pkl"
-    alpha = new_tagger.forward(test_doc)
-    logprob = logsumexp(alpha[-1])
-    print(logprob)
-    # pickle.dump(tagger, open("test tagger.pkl",'wb'))
+    dur = time.time() - start_time
+    hours, rem = divmod(dur, 3600)
+    minutes, seconds = divmod(rem, 60)
+    print("Model trained in {} hours, {} minutes, {} seconds".format(int(hours),int(minutes),int(seconds)))
+    
+    pickle.dump(new_tagger, open("test_0605.pkl",'wb'))
 
 
 if __name__ == '__main__':    
@@ -536,9 +526,9 @@ if __name__ == '__main__':
 
     # test_extract_summary("Awards, Decorations and Honors")
     # test_permutation()
-    test_hyper_train()
+    # test_hyper_train()
 
-    # train_all()
+    train_all()
 
     # permutation_test(15,15)
 

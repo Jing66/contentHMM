@@ -333,7 +333,7 @@ class ContentTagger():
 ########################################################################################################
 
 class ContentTaggerTrainer():
-    def __init__(self, docs, vocab, k, T, delta_1, delta_2):
+    def __init__(self, docs, vocab, k, T, delta_1, delta_2, tree = None):
         self._docs = docs
         self._vocab = vocab
         self._k = k
@@ -342,7 +342,10 @@ class ContentTaggerTrainer():
         self._delta_2 = delta_2
 
         flat_docs = [i for di in docs for i in di]
-        self._tree = make_cluster_tree(flat_docs) 
+        if tree is None:
+            self._tree = make_cluster_tree(flat_docs) 
+        else:
+            self._tree = tree
         cluster ,flat_c = make_clusters(flat_docs,self._tree, k)
         # self._clusters is a list of clusters, each containing a list of sentences, each containing a list of words
         self._clusters,self._flat = filter_etc(cluster,flat_c, T) 
@@ -470,20 +473,23 @@ class ContentTaggerTrainer():
 
         return model
 
-    def adjust_tree(self, k, tree,T, delta_1 = None, delta_2 = None): 
+    def adjust_tree(self, k, tree,T, delta_1, delta_2 ): 
         #Given tree, k,T, adjust probabilities according to new cluster 
-        self._tree = tree
-        flat_docs = [i for di in self._docs for i in di]
-        cluster ,flat_c = make_clusters(flat_docs,self._tree, k)
-        self._clusters,self._flat = filter_etc(cluster,flat_c, T)
-        self._m = len(self._clusters)
+        # self._tree = tree
+        # flat_docs = [i for di in self._docs for i in di]
+        # cluster ,flat_c = make_clusters(flat_docs,self._tree, k)
+        # self._clusters,self._flat = filter_etc(cluster,flat_c, T)
+        # self._m = len(self._clusters)
         
-        self._delta_1 = delta_1
-        self._delta_2 = delta_2
+        # self._delta_1 = delta_1
+        # self._delta_2 = delta_2
 
-        self._priors = self.prior()
-        self._trans = self.trans_prob()
-        self._emis = self.emission_prob_all()
+        # self._priors = self.prior()
+        # self._trans = self.trans_prob()
+        # self._emis = self.emission_prob_all()
+
+        new_trainer = ContentTaggerTrainer(self._docs, self._vocab, k, T, delta_1, delta_2,tree)
+        return new_trainer
 
  
 ########################################################################################################
@@ -509,9 +515,9 @@ if __name__ == '__main__':
 
     print("========Testing Training ==========")
     myTagger = trainer.train_unsupervised(10,1e-8)
-    # print(myTagger._priors)
+    print(myTagger._map)
     # print(trainer._flat)
-    myTagger.print_info()
+    # myTagger.print_info()
 
     
 
