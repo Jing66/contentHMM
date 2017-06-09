@@ -15,12 +15,12 @@ from content_hmm import *
 from multiprocessing.dummy import Pool as ThreadPool
 
 input_dir = '/home/ml/jliu164/code/contentHMM_input/contents/'
-tagger_dir = '/home/ml/jliu164/code/contentHMM_tagger/contents/'
+tagger_dir = '/home/ml/jliu164/code/contentHMM_tagger/contents2/'
 
 choice = 'content_annotated/'
 root_dir = "/home/ml/jliu164/corpus/nyt_corpus/" + choice
 para_path = tagger_dir+'hyper-para.txt'
-image_dir = '/home/ml/jliu164/code/contentHMM_tagger/Transition Image/contents/'
+image_dir = '/home/ml/jliu164/code/contentHMM_tagger/Transition Image/contents2/'
 fail_path = '/home/ml/jliu164/code/contentHMM_input/fail/'
 
 
@@ -148,22 +148,24 @@ def save_input(start,end,low,high):
 ########################################################################################################
 #########################################   Model Training  ############################################
 ########################################################################################################
-def hyper_train(docs_train, vocab_train, docs_dev, topic, sample_size = 20):
+def hyper_train(docs_train, vocab_train, docs_dev, topic, trainer,sample_size = 30):
     """
     Given the development set of doc and vocab, return the best set of hyper parameter for the trainer of this topic
     """
-    
-    last_score = -np.inf
+    init_path = "contentHMM_tagger/topic_init/"+topic+"_trainer_init.pkl"
     # initialize with random numpy arrays of size sample_size
     delta_1 = np.random.uniform(low = 0.0000001, high = 0.001)
     k = np.random.randint(10,high =50)
     t = np.random.randint(2,high =7)
     delta_2 = np.random.uniform(low = 0.1, high = 10) # (0.1,10)
 
-    # train the model
-    trainer = ContentTaggerTrainer(docs_train, vocab_train, k, t, delta_1, delta_2)
-    tree = trainer._tree
-    pickle.dump(trainer, open("contentHMM_tagger/topic_init/"+topic+"_trainer_init.pkl",'wb'))
+    if trainer:
+        tree = trainer._tree
+    else:
+        # initialize and save the model
+        trainer = ContentTaggerTrainer(docs_train, vocab_train, k, t, delta_1, delta_2)
+        tree = trainer._tree
+        pickle.dump(trainer, open(init_path,'wb'))
 
     delta_1 = np.random.uniform(low = 0.0000001, high = 0.001, size = sample_size)
     k = np.random.randint(10,high =50,size = sample_size)
@@ -172,7 +174,9 @@ def hyper_train(docs_train, vocab_train, docs_dev, topic, sample_size = 20):
 
     # create thread pool
     pool = ThreadPool(5)
+    
     results = pool.map(_train, itertools.izip(delta_1,delta_2,k,t,itertools.repeat(tree), itertools.repeat(trainer),range(sample_size),itertools.repeat(docs_dev)))
+    # results = pool.map(_train, itertools.izip(delta_1,delta_2,itertools.repeat(k),itertools.repeat(t),itertools.repeat(tree), itertools.repeat(trainer),range(sample_size),itertools.repeat(docs_dev)))
     pool.close()
     pool.join()
     
@@ -185,7 +189,6 @@ def _train((delta_1,delta_2,k,t,tree,trainer,j,docs_dev)):
     # return (score,model) of a trained model tested on dev set
     print("++++++++++++++ Sampling #"+str(j)+"+++++++++++++++")
     print(" Training model with hyper parameters: ", delta_1, delta_2 , k, t)
-
     new_trainer = trainer.adjust_tree(k, tree, t,delta_1,delta_2)
     print(">> Initial Clustering for hyper_train:")
     print(dict(Counter(new_trainer._flat)))
@@ -195,17 +198,8 @@ def _train((delta_1,delta_2,k,t,tree,trainer,j,docs_dev)):
     # test on dev set
     alpha = model.forward_algo(docs_dev)
     logprob = logsumexp(alpha[-1])
-    print("log prob on dev set"+str(logprob))
-
-    perm_mistake = 0
-    # for _ in range(10):
-    #     i = np.random.random_integers(0,len(docs_dev)-1)
-    #     print("Testing with doc {} of length {}...".format(str(i),str(len(docs_dev[i]))))
-    #     perm_mistake += permutation_test_single(model, docs_dev[i], 15)
-
-    # print("permutation mistake:" +str(perm_mistake))
-    # score_arr = np.array([logprob, 0.5*float(perm_mistake)/150])
-    # score = logsumexp(score_arr)
+    print(">>>>>>>>>>>>>log prob on dev set"+str(logprob))
+    
     return logprob,model
 
 
@@ -217,7 +211,8 @@ def train_all():
         os.makedirs(tagger_dir)
 
     # inputs = os.listdir(input_dir)
-    inputs = ['Olympic Games','Olympic Games (2000)','Summer Games (Olympics)','Teachers ahd School Employees']
+    inputs = ['Freedom and Human Rights']
+    
     # get all topics data input
     for topic in inputs:
         start_time = time.time()
@@ -240,8 +235,16 @@ def train_all():
             print("   Training or development data not available!")
             continue
 
+        trainer = None
         try:
-            myTagger = hyper_train(docs_train, vocab_train, dev_docs, topic)
+            trainer = pickle.load(open("contentHMM_tagger/topic_init/"+topic+"_trainer_init.pkl"))
+            print(" Initialized trainer available yay!")
+        except:
+            print(" No available Initialized trainer...")
+            pass
+
+        try:
+            myTagger = hyper_train(docs_train, vocab_train, dev_docs, topic,trainer)
         except Exception as e:
             print("!Training the model for {} failed! ".format(topic))
             log_exception(e)
@@ -252,7 +255,7 @@ def train_all():
             hours, rem = divmod(dur, 3600)
             minutes, seconds = divmod(rem, 60)
             print("Model trained in {} hours, {} minutes, {} seconds".format(int(hours),int(minutes),int(seconds)))
-    
+
             pickle.dump(myTagger, open(tagger_dir+topic+'.pkl','wb'))
             print
 
@@ -325,7 +328,7 @@ def permutation_test(doc_num, test_num):
                 log_exception(e)
                 pass
         
-        f = open("Results/permutation test result.txt",'a')
+        f = open("permutation test result.txt",'a')
         f.write(topic+", mistake #: " + str(mistake)+'\n')
         f.close()
         
@@ -335,8 +338,14 @@ def trans_image(tagger,topic):
     """
     Given a tagger, generate its transition probability graph
     """
+    import matplotlib as mpl
+    if os.environ.get('DISPLAY','') == '':
+        #print('no display found. Using non-interactive Agg backend')
+        mpl.use('Agg')
+
     import matplotlib.pyplot as plt
     from matplotlib.pyplot import cm
+
     if not os.path.exists(image_dir):
         os.makedirs(image_dir)
 
@@ -509,16 +518,16 @@ def test_hyper_train():
 
     dev_path = "contentHMM_input/contents/Olympic Games/Olympic Games0.pkl"
     dev_docs,_ = pickle.load(open(dev_path))
-    
+    trainer = pickle.load(open("trainer_init.pkl"))    
     train_docs, train_vocab = pickle.load(open("contentHMM_input/contents/Olympic Games/Olympic Games1.pkl"))
-    new_tagger = hyper_train(train_docs, train_vocab, dev_docs)
+    new_tagger = hyper_train(train_docs, train_vocab, dev_docs, "Olympic Games",trainer)
 
     dur = time.time() - start_time
     hours, rem = divmod(dur, 3600)
     minutes, seconds = divmod(rem, 60)
     print("Model trained in {} hours, {} minutes, {} seconds".format(int(hours),int(minutes),int(seconds)))
     
-    pickle.dump(new_tagger, open("test_0605.pkl",'wb'))
+    pickle.dump(new_tagger, open("Olympic Games.pkl",'wb'))
 
 
 if __name__ == '__main__':    
@@ -528,9 +537,9 @@ if __name__ == '__main__':
     # test_permutation()
     # test_hyper_train()
 
-    train_all()
+    # train_all()
 
-    # permutation_test(15,15)
+    permutation_test(25,10)
 
     # print_all('/home/ml/jliu164/code/contentHMM_tagger/contents/')
 

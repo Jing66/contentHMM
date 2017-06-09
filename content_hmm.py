@@ -297,34 +297,59 @@ class ContentTagger():
 
 
     ######################################### Print Information ########################################
-    def print_info(self, n = 3):
-        print("\nTotal cluster #:"+str(self._m))
+    def print_info(self, n_state = 5, n_emis = 15):
+        print(">> Total cluster #:"+str(self._m))
+        print(">> Vocabulary size: "+str(self._V))
+        # Prior info print
+        print("\n>> Top 5 probable prior clusters and prob:")
+        top = heapq.nlargest(n_state, range(self._m), self._priors.take)
+        for t,p in zip(top, np.exp(self._priors[top]).tolist()):
+            print("P(s_%s) = %s" %(t,str(p)))
 
-        print("++++++++ Top n probable prior clusters with log prob: +++++++++")
-        top = heapq.nlargest(n, range(self._m), self._priors.take)
-        print(top, self._priors[top].tolist())
+        # Transition info print
+        print("\n>> Top 5 Most probable Transition for all clusters:")
+        for i in range(self._m):
+            top3 = heapq.nlargest(n_state, range(self._m), self._trans[i,:].take)
+  
+            print("Topic "+str(i)+": top 5 transtions are topics "+str(top3))
+            for j in top3:
+                print("P(s_%s|s_%s) = %s" %(j,i,np.exp(self._trans[i,j])))
 
-        print("\n++++++++ Most probable Emission for every cluster( etcetera excluded): ++++++++")
+        # Emission info print
+        print("\n\n>> Top 15 Bigram Emission for every cluster/topic (etcetera excluded) ranking from highest to lowest:")
         # max_emis = [si.tocsr().toarray().argmax() for si in self._emis]
         # max_index = [divmod(i,self._V+3) for i in max_emis] # [k]=(i,j): most probable bigram is index i,j for cluster k
         # max_words = [(self._map.keys()[self._map.values().index(i)],self._map.keys()[self._map.values().index(j)]) for i,j in max_index]
         # print(max_words)
         for i in range(len(self._emis)):
             emis = self._emis[i].tocsr().toarray()
-            ind = emis.flatten().argsort()[-n:]
+            ind = emis.flatten().argsort()[-n_emis:]
             X,Y = np.unravel_index(ind, emis.shape)
             
             words = [(self._map.keys()[self._map.values().index(x)],self._map.keys()[self._map.values().index(y)]) for x,y in zip(X,Y)]
-            
             words.reverse()
-            print("For cluster "+str(i)+", top n emission are "+str((words)))
-            
-        print("\n++++++++ Top n Most probable Transition for all clusters and its logprob: ++++++++")
-        # print(np.argmax(self._trans, axis = 1))
-        for i in range(self._m):
-            top3 = heapq.nlargest(n, range(self._m), self._trans[i,:].take)
-            print("For cluster "+str(i)+", top n transtions are "+str(top3)+". log prob "+ str(self._trans[i,top3]))
+            counts = [emis[x][y] for x,y in zip(X,Y)]
+            counts.reverse()
+            print("\n>> Topic "+str(i)+" emission and counts: ")
+            for w,c in zip(words,counts):
+                print("Bigram emission %s, counts = %s" %(w,str(c)))
 
+            uni = np.sum(emis, axis =1)
+            top = heapq.nlargest(10, range(len(uni)), uni.take)
+            words_uni = [self._map.keys()[self._map.values().index(x)] for x in top]
+            counts_uni = [uni[i] for i in top]
+            for w,c in zip(words_uni,counts_uni):
+                print("Unigram emission: '%s'. Counts = %s" %(w,str(c)))
+            
+            end_emis = emis[:,1]
+            if not np.all(end_emis):
+                end_top = heapq.nlargest(n_state, range(len(end_emis)), end_emis.take)
+                end_words = [self._map.keys()[self._map.values().index(x)] for x in end_top]
+                end_counts = [end_emis[i] for i in end_top]
+                print("Top 5 words followed by END_SENT: ")
+                print(end_words)
+                print("counts = "+str(end_counts))
+        
 
 
    
@@ -468,9 +493,6 @@ class ContentTaggerTrainer():
             iteration += 1
             last_logprob = log_prob
         print(">> Total iteration: "+str(iteration))
-        
-        # model = ContentTagger(self._vocab, self._emis, self._trans, self._priors, self._delta_1, self._delta_2)
-
         return model
 
     def adjust_tree(self, k, tree,T, delta_1, delta_2 ): 
@@ -505,7 +527,7 @@ if __name__ == '__main__':
     myTagger = trainer.train_unsupervised(10,1e-8)
     print(myTagger._map)
     # print(trainer._flat)
-    # myTagger.print_info()
+    myTagger.print_info()
 
     
 
