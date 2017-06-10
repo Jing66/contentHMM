@@ -6,7 +6,7 @@ for next in *.tgz
 		echo "Unzipping $next"
 		tar -xzf $next
 	done
-
+rm *.tgz
 exit 0
 
 scp 1988/12.tgz jliu164@dp-gpu1.cs.mcgill.ca:~/corpus/nyt_corpus/data/1988

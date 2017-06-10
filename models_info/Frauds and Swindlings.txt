@@ -1,0 +1,815 @@
+=====================================================
+   Tagger Info for Frauds and Swindling.pkl
+=====================================================
+>> Total cluster #:23
+>> Vocabulary size: 13248
+
+>> Top 5 probable prior clusters and prob:
+P(s_1) = 0.255035754647
+P(s_15) = 0.0762391326093
+P(s_11) = 0.0660221827786
+P(s_4) = 0.0634679453209
+P(s_2) = 0.0583594704056
+
+>> Top 5 Most probable Transition for all clusters:
+Topic 0: top 5 transtions are topics [1, 6, 4, 0, 15]
+P(s_1|s_0) = 0.279495118005
+P(s_6|s_0) = 0.182463361447
+P(s_4|s_0) = 0.0854316048887
+P(s_0|s_0) = 0.0800409517466
+P(s_15|s_0) = 0.053087686036
+Topic 1: top 5 transtions are topics [1, 6, 4, 2, 5]
+P(s_1|s_1) = 0.225964029285
+P(s_6|s_1) = 0.180915395892
+P(s_4|s_1) = 0.121417200843
+P(s_2|s_1) = 0.0806184385241
+P(s_5|s_1) = 0.0466194699249
+Topic 2: top 5 transtions are topics [1, 6, 2, 4, 0]
+P(s_1|s_2) = 0.310462029401
+P(s_6|s_2) = 0.169712057611
+P(s_2|s_2) = 0.114066719927
+P(s_4|s_2) = 0.0649678925584
+P(s_0|s_2) = 0.0420551064531
+Topic 3: top 5 transtions are topics [1, 6, 4, 3, 2]
+P(s_1|s_3) = 0.3191791747
+P(s_6|s_3) = 0.121852448317
+P(s_4|s_3) = 0.0738540554127
+P(s_3|s_3) = 0.0685209006456
+P(s_2|s_3) = 0.0631877458785
+Topic 4: top 5 transtions are topics [1, 6, 4, 0, 2]
+P(s_1|s_4) = 0.285998500672
+P(s_6|s_4) = 0.163287564979
+P(s_4|s_4) = 0.128842390047
+P(s_0|s_4) = 0.0448822761521
+P(s_2|s_4) = 0.0448822761521
+Topic 5: top 5 transtions are topics [1, 6, 4, 5, 2]
+P(s_1|s_5) = 0.216262229259
+P(s_6|s_5) = 0.128409782392
+P(s_4|s_5) = 0.102570827432
+P(s_5|s_5) = 0.102570827432
+P(s_2|s_5) = 0.0560607085026
+Topic 6: top 5 transtions are topics [1, 6, 4, 2, 5]
+P(s_1|s_6) = 0.315647962858
+P(s_6|s_6) = 0.20383902076
+P(s_4|s_6) = 0.0948253022137
+P(s_2|s_6) = 0.0696682902415
+P(s_5|s_6) = 0.036125607612
+Topic 7: top 5 transtions are topics [1, 7, 6, 2, 3]
+P(s_1|s_7) = 0.259342672416
+P(s_7|s_7) = 0.132363606801
+P(s_6|s_7) = 0.0942698871159
+P(s_2|s_7) = 0.0561761674311
+P(s_3|s_7) = 0.0561761674311
+Topic 8: top 5 transtions are topics [1, 6, 2, 4, 8]
+P(s_1|s_8) = 0.0950813353909
+P(s_6|s_8) = 0.0788228324595
+P(s_2|s_8) = 0.0625643295281
+P(s_4|s_8) = 0.0625643295281
+P(s_8|s_8) = 0.0625643295281
+Topic 9: top 5 transtions are topics [1, 6, 4, 9, 5]
+P(s_1|s_9) = 0.205132723242
+P(s_6|s_9) = 0.205132723242
+P(s_4|s_9) = 0.0814267206133
+P(s_9|s_9) = 0.0745541649117
+P(s_5|s_9) = 0.0470639421052
+Topic 10: top 5 transtions are topics [1, 6, 10, 4, 2]
+P(s_1|s_10) = 0.210994077017
+P(s_6|s_10) = 0.162016995178
+P(s_10|s_10) = 0.129365607284
+P(s_4|s_10) = 0.0803885254445
+P(s_2|s_10) = 0.0640628314979
+Topic 11: top 5 transtions are topics [1, 6, 11, 4, 3]
+P(s_1|s_11) = 0.245638974434
+P(s_6|s_11) = 0.105587877687
+P(s_11|s_11) = 0.0943837899478
+P(s_4|s_11) = 0.0663735705985
+P(s_3|s_11) = 0.0551694828588
+Topic 12: top 5 transtions are topics [1, 6, 12, 4, 3]
+P(s_1|s_12) = 0.189922552346
+P(s_6|s_12) = 0.142078536665
+P(s_12|s_12) = 0.10380332412
+P(s_4|s_12) = 0.0559593084386
+P(s_3|s_12) = 0.0368217021661
+Topic 13: top 5 transtions are topics [1, 6, 4, 13, 2]
+P(s_1|s_13) = 0.308221058767
+P(s_6|s_13) = 0.10891694342
+P(s_4|s_13) = 0.0539364978068
+P(s_13|s_13) = 0.0539364978068
+P(s_2|s_13) = 0.0470639421052
+Topic 14: top 5 transtions are topics [1, 21, 6, 14, 4]
+P(s_1|s_14) = 0.148098067286
+P(s_21|s_14) = 0.116014659985
+P(s_6|s_14) = 0.0839312526841
+P(s_14|s_14) = 0.0839312526841
+P(s_4|s_14) = 0.0625423144833
+Topic 15: top 5 transtions are topics [1, 15, 6, 4, 3]
+P(s_1|s_15) = 0.209290000797
+P(s_15|s_15) = 0.185266882571
+P(s_6|s_15) = 0.119203307451
+P(s_4|s_15) = 0.083168630112
+P(s_3|s_15) = 0.0471339527735
+Topic 16: top 5 transtions are topics [1, 2, 6, 17, 0]
+P(s_1|s_16) = 0.143856844185
+P(s_2|s_16) = 0.0625643295281
+P(s_6|s_16) = 0.0625643295281
+P(s_17|s_16) = 0.0625643295281
+P(s_0|s_16) = 0.0463058265968
+Topic 17: top 5 transtions are topics [1, 17, 6, 4, 11]
+P(s_1|s_17) = 0.167763229772
+P(s_17|s_17) = 0.122568695625
+P(s_6|s_17) = 0.0886727950158
+P(s_4|s_17) = 0.0547768944061
+P(s_11|s_17) = 0.0547768944061
+Topic 18: top 5 transtions are topics [1, 4, 6, 2, 18]
+P(s_1|s_18) = 0.119806822927
+P(s_4|s_18) = 0.0892753981038
+P(s_6|s_18) = 0.0892753981038
+P(s_2|s_18) = 0.058743973281
+P(s_18|s_18) = 0.058743973281
+Topic 19: top 5 transtions are topics [1, 19, 0, 6, 3]
+P(s_1|s_19) = 0.107833418423
+P(s_19|s_19) = 0.0920869437026
+P(s_0|s_19) = 0.076340468982
+P(s_6|s_19) = 0.076340468982
+P(s_3|s_19) = 0.0448475195409
+Topic 20: top 5 transtions are topics [1, 6, 21, 2, 5]
+P(s_1|s_20) = 0.119084372821
+P(s_6|s_20) = 0.0843055613231
+P(s_21|s_20) = 0.0843055613231
+P(s_2|s_20) = 0.0669161555744
+P(s_5|s_20) = 0.0495267498256
+Topic 21: top 5 transtions are topics [1, 21, 4, 6, 11]
+P(s_1|s_21) = 0.188792636025
+P(s_21|s_21) = 0.16845451861
+P(s_4|s_21) = 0.120998911307
+P(s_6|s_21) = 0.114219538836
+P(s_11|s_21) = 0.0599845590617
+Topic 22: top 5 transtions are topics [0, 1, 2, 3, 4]
+P(s_0|s_22) = 0.0434782608696
+P(s_1|s_22) = 0.0434782608696
+P(s_2|s_22) = 0.0434782608696
+P(s_3|s_22) = 0.0434782608696
+P(s_4|s_22) = 0.0434782608696
+
+
+>> Top 15 Bigram Emission for every cluster/topic (etcetera excluded) ranking from highest to lowest:
+
+>> Topic 0 emission and counts: 
+Bigram emission (u'lawyer', u'say'), counts = 11.0
+Bigram emission (u'Federal', u'Bureau'), counts = 10.0
+Bigram emission (u'Bureau', u'Investigation'), counts = 10.0
+Bigram emission (u'say', '**END_SENT**'), counts = 9.0
+Bigram emission (u'defense', u'lawyer'), counts = 9.0
+Bigram emission ('**START_SENT**', u'lawyer'), counts = 8.0
+Bigram emission (u'lawyer', u'represent'), counts = 7.0
+Bigram emission (u'Wall', u'Street'), counts = 6.0
+Bigram emission (u'New', u'York'), counts = 6.0
+Bigram emission (u'case', '**END_SENT**'), counts = 6.0
+Bigram emission (u'District', u'Court'), counts = 5.0
+Bigram emission (u'United', u'States'), counts = 5.0
+Bigram emission (u'discrimination', u'complaint'), counts = 5.0
+Bigram emission (u'say', u'company'), counts = 5.0
+Bigram emission (u'prosecutor', u'say'), counts = 5.0
+Unigram emission: '**START_SENT**'. Counts = 197.0
+Unigram emission: 'say'. Counts = 139.0
+Unigram emission: 'lawyer'. Counts = 116.0
+Unigram emission: 'company'. Counts = 48.0
+Unigram emission: 'former'. Counts = 33.0
+Unigram emission: 'Pirro'. Counts = 31.0
+Unigram emission: 'case'. Counts = 30.0
+Unigram emission: 'employee'. Counts = 27.0
+Unigram emission: 'charge'. Counts = 26.0
+Unigram emission: 'file'. Counts = 25.0
+Top 5 words followed by END_SENT: 
+[u'say', u'case', u'charge', u'plan', u'innocence']
+counts = [9.0, 6.0, 4.0, 3.0, 3.0]
+
+>> Topic 1 emission and counts: 
+Bigram emission (u'credit', u'card'), counts = 93.0
+Bigram emission (u'say', '**END_SENT**'), counts = 85.0
+Bigram emission ('**START_SENT**', u'one'), counts = 50.0
+Bigram emission ('**START_SENT**', u'say'), counts = 44.0
+Bigram emission (u'United', u'States'), counts = 41.0
+Bigram emission (u'New', u'York'), counts = 40.0
+Bigram emission (u'Social', u'Security'), counts = 37.0
+Bigram emission (u'plead', u'guilty'), counts = 37.0
+Bigram emission (u'law', u'enforcement'), counts = 34.0
+Bigram emission (u'fraud', '**END_SENT**'), counts = 29.0
+Bigram emission ('**START_SENT**', u'want'), counts = 28.0
+Bigram emission ('**START_SENT**', u'many'), counts = 27.0
+Bigram emission (u'prosecutor', u'say'), counts = 26.0
+Bigram emission (u'Security', u'number'), counts = 26.0
+Bigram emission (u'identity', u'theft'), counts = 25.0
+Unigram emission: '**START_SENT**'. Counts = 3567.0
+Unigram emission: 'say'. Counts = 603.0
+Unigram emission: 'one'. Counts = 268.0
+Unigram emission: 'company'. Counts = 251.0
+Unigram emission: 'would'. Counts = 191.0
+Unigram emission: 'fraud'. Counts = 186.0
+Unigram emission: 'case'. Counts = 184.0
+Unigram emission: 'people'. Counts = 165.0
+Unigram emission: 'get'. Counts = 164.0
+Unigram emission: 'take'. Counts = 162.0
+Top 5 words followed by END_SENT: 
+[u'say', u'fraud', u'company', u'case', u'year']
+counts = [85.0, 29.0, 21.0, 21.0, 20.0]
+
+>> Topic 2 emission and counts: 
+Bigram emission ('**START_SENT**', u'think'), counts = 30.0
+Bigram emission (u'say', '**END_SENT**'), counts = 29.0
+Bigram emission (u'prosecutor', u'say'), counts = 19.0
+Bigram emission (u'New', u'York'), counts = 17.0
+Bigram emission (u'chief', u'executive'), counts = 15.0
+Bigram emission (u'health', u'care'), counts = 12.0
+Bigram emission (u'Bear', u'Stearns'), counts = 12.0
+Bigram emission (u'federal', u'prosecutor'), counts = 12.0
+Bigram emission (u'financial', u'officer'), counts = 9.0
+Bigram emission (u'chief', u'financial'), counts = 9.0
+Bigram emission ('**START_SENT**', u'would'), counts = 9.0
+Bigram emission (u'Al', u'Gore'), counts = 9.0
+Bigram emission ('**START_SENT**', u'prosecutor'), counts = 9.0
+Bigram emission (u'accounting', u'firm'), counts = 8.0
+Bigram emission (u'million', '**END_SENT**'), counts = 8.0
+Unigram emission: '**START_SENT**'. Counts = 378.0
+Unigram emission: 'say'. Counts = 185.0
+Unigram emission: 'would'. Counts = 88.0
+Unigram emission: 'prosecutor'. Counts = 62.0
+Unigram emission: 'million'. Counts = 62.0
+Unigram emission: 'think'. Counts = 53.0
+Unigram emission: 'lawyer'. Counts = 43.0
+Unigram emission: 'company'. Counts = 37.0
+Unigram emission: 'officer'. Counts = 36.0
+Unigram emission: 'contract'. Counts = 36.0
+Top 5 words followed by END_SENT: 
+[u'say', u'million', u'year', u'cent', u'officer']
+counts = [29.0, 8.0, 5.0, 4.0, 4.0]
+
+>> Topic 3 emission and counts: 
+Bigram emission (u'last', u'year'), counts = 32.0
+Bigram emission (u'year', '**END_SENT**'), counts = 28.0
+Bigram emission (u'two', u'year'), counts = 21.0
+Bigram emission (u'year', u'prison'), counts = 13.0
+Bigram emission (u'year', u'ago'), counts = 12.0
+Bigram emission (u'say', '**END_SENT**'), counts = 10.0
+Bigram emission ('**START_SENT**', u'last'), counts = 10.0
+Bigram emission (u'five', u'year'), counts = 10.0
+Bigram emission (u'four', u'year'), counts = 7.0
+Bigram emission (u'year', u'say'), counts = 7.0
+Bigram emission ('**START_SENT**', u'face'), counts = 6.0
+Bigram emission (u'three', u'year'), counts = 6.0
+Bigram emission (u'New', u'York'), counts = 6.0
+Bigram emission (u'face', u'year'), counts = 6.0
+Bigram emission (u'Uttar', u'Pradesh'), counts = 6.0
+Unigram emission: '**START_SENT**'. Counts = 200.0
+Unigram emission: 'year'. Counts = 175.0
+Unigram emission: 'last'. Counts = 55.0
+Unigram emission: 'say'. Counts = 50.0
+Unigram emission: 'two'. Counts = 30.0
+Unigram emission: 'million'. Counts = 25.0
+Unigram emission: 'one'. Counts = 25.0
+Unigram emission: 'sentence'. Counts = 24.0
+Unigram emission: 'face'. Counts = 22.0
+Unigram emission: 'prison'. Counts = 19.0
+Top 5 words followed by END_SENT: 
+[u'year', u'say', u'industry', u'company', u'York']
+counts = [28.0, 10.0, 2.0, 2.0, 2.0]
+
+>> Topic 4 emission and counts: 
+Bigram emission (u'United', u'States'), counts = 112.0
+Bigram emission (u'States', u'attorney'), counts = 35.0
+Bigram emission (u'web', u'site'), counts = 22.0
+Bigram emission (u'New', u'York'), counts = 19.0
+Bigram emission ('**START_SENT**', u'also'), counts = 18.0
+Bigram emission (u'Salt', u'Lake'), counts = 15.0
+Bigram emission (u'Lake', u'City'), counts = 15.0
+Bigram emission (u'last', u'week'), counts = 14.0
+Bigram emission (u'say', '**END_SENT**'), counts = 14.0
+Bigram emission (u'Supreme', u'Court'), counts = 13.0
+Bigram emission (u'last', u'year'), counts = 13.0
+Bigram emission (u'assistant', u'United'), counts = 13.0
+Bigram emission (u'district', u'attorney'), counts = 13.0
+Bigram emission ('**START_SENT**', u'charge'), counts = 12.0
+Bigram emission (u'year', u'prison'), counts = 12.0
+Unigram emission: '**START_SENT**'. Counts = 623.0
+Unigram emission: 'say'. Counts = 154.0
+Unigram emission: 'charge'. Counts = 131.0
+Unigram emission: 'States'. Counts = 117.0
+Unigram emission: 'United'. Counts = 112.0
+Unigram emission: 'year'. Counts = 65.0
+Unigram emission: 'campaign'. Counts = 62.0
+Unigram emission: 'also'. Counts = 62.0
+Unigram emission: 'attorney'. Counts = 55.0
+Unigram emission: 'day'. Counts = 54.0
+Top 5 words followed by END_SENT: 
+[u'say', u'campaign', u'year', u'charge', u'fraud']
+counts = [14.0, 10.0, 8.0, 8.0, 6.0]
+
+>> Topic 5 emission and counts: 
+Bigram emission (u'State', u'Farm'), counts = 18.0
+Bigram emission ('**START_SENT**', u'company'), counts = 17.0
+Bigram emission (u'weight', u'loss'), counts = 14.0
+Bigram emission (u'insurance', u'company'), counts = 13.0
+Bigram emission (u'pay', u'million'), counts = 13.0
+Bigram emission (u'health', u'care'), counts = 12.0
+Bigram emission (u'agree', u'pay'), counts = 11.0
+Bigram emission (u'Franklin', u'American'), counts = 9.0
+Bigram emission (u'day', u'care'), counts = 8.0
+Bigram emission (u'say', '**END_SENT**'), counts = 7.0
+Bigram emission ('**START_SENT**', u'need'), counts = 7.0
+Bigram emission (u'care', u'center'), counts = 6.0
+Bigram emission (u'Justice', u'Department'), counts = 6.0
+Bigram emission (u'campaign', u'expense'), counts = 6.0
+Bigram emission (u'go', u'public'), counts = 6.0
+Unigram emission: '**START_SENT**'. Counts = 229.0
+Unigram emission: 'company'. Counts = 131.0
+Unigram emission: 'say'. Counts = 61.0
+Unigram emission: 'pay'. Counts = 49.0
+Unigram emission: 'million'. Counts = 40.0
+Unigram emission: 'insurance'. Counts = 31.0
+Unigram emission: 'care'. Counts = 30.0
+Unigram emission: 'state'. Counts = 28.0
+Unigram emission: 'would'. Counts = 27.0
+Unigram emission: 'health'. Counts = 26.0
+Top 5 words followed by END_SENT: 
+[u'say', u'company', u'year', u'claim', u'expense']
+counts = [7.0, 6.0, 6.0, 6.0, 5.0]
+
+>> Topic 6 emission and counts: 
+Bigram emission (u'say', '**END_SENT**'), counts = 193.0
+Bigram emission ('**START_SENT**', u'say'), counts = 63.0
+Bigram emission (u'official', u'say'), counts = 47.0
+Bigram emission (u'district', u'attorney'), counts = 32.0
+Bigram emission (u'prosecutor', u'say'), counts = 29.0
+Bigram emission (u'New', u'York'), counts = 27.0
+Bigram emission (u'say', u'would'), counts = 25.0
+Bigram emission (u'say', u'yesterday'), counts = 21.0
+Bigram emission (u'United', u'States'), counts = 20.0
+Bigram emission (u'investigator', u'say'), counts = 18.0
+Bigram emission ('**START_SENT**', u'know'), counts = 17.0
+Bigram emission (u'attorney', u'office'), counts = 17.0
+Bigram emission (u'attorney', u'general'), counts = 16.0
+Bigram emission (u'Captain', u'Lau'), counts = 15.0
+Bigram emission ('**START_SENT**', u'one'), counts = 14.0
+Unigram emission: '**START_SENT**'. Counts = 1429.0
+Unigram emission: 'say'. Counts = 1187.0
+Unigram emission: 'would'. Counts = 163.0
+Unigram emission: 'company'. Counts = 120.0
+Unigram emission: 'official'. Counts = 105.0
+Unigram emission: 'people'. Counts = 101.0
+Unigram emission: 'make'. Counts = 99.0
+Unigram emission: 'office'. Counts = 87.0
+Unigram emission: 'know'. Counts = 86.0
+Unigram emission: 'one'. Counts = 82.0
+Top 5 words followed by END_SENT: 
+[u'say', u'company', u'money', '**START_SENT**', u'year']
+counts = [193.0, 10.0, 10.0, 9.0, 9.0]
+
+>> Topic 7 emission and counts: 
+Bigram emission (u'Ernst', u'Young'), counts = 13.0
+Bigram emission (u'money', u'laundering'), counts = 10.0
+Bigram emission (u'million', u'dollar'), counts = 10.0
+Bigram emission (u'United', u'States'), counts = 7.0
+Bigram emission (u'New', u'York'), counts = 7.0
+Bigram emission (u'name', '**END_SENT**'), counts = 7.0
+Bigram emission (u'official', u'say'), counts = 6.0
+Bigram emission (u'internet', u'name'), counts = 6.0
+Bigram emission (u'say', '**END_SENT**'), counts = 6.0
+Bigram emission (u'Crescent', u'Operating'), counts = 6.0
+Bigram emission (u'investor', u'million'), counts = 5.0
+Bigram emission (u'Magellan', u'Health'), counts = 5.0
+Bigram emission (u'Beth', u'Israel'), counts = 5.0
+Bigram emission (u'CUC', u'official'), counts = 5.0
+Bigram emission (u'indictment', '**END_SENT**'), counts = 5.0
+Unigram emission: '**START_SENT**'. Counts = 159.0
+Unigram emission: 'say'. Counts = 84.0
+Unigram emission: 'million'. Counts = 57.0
+Unigram emission: 'fraud'. Counts = 56.0
+Unigram emission: 'name'. Counts = 48.0
+Unigram emission: 'company'. Counts = 46.0
+Unigram emission: 'money'. Counts = 32.0
+Unigram emission: 'use'. Counts = 28.0
+Unigram emission: 'case'. Counts = 23.0
+Unigram emission: 'one'. Counts = 22.0
+Top 5 words followed by END_SENT: 
+[u'name', u'say', u'indictment', u'Rockefeller', u'million']
+counts = [7.0, 6.0, 5.0, 3.0, 2.0]
+
+>> Topic 8 emission and counts: 
+Bigram emission (u'District', u'Court'), counts = 5.0
+Bigram emission (u'Staten', u'Island'), counts = 4.0
+Bigram emission (u'roofing', u'contractor'), counts = 4.0
+Bigram emission (u'bank', u'account'), counts = 4.0
+Bigram emission (u'New', u'York'), counts = 3.0
+Bigram emission (u'attorney', u'general'), counts = 3.0
+Bigram emission (u'Federal', u'District'), counts = 3.0
+Bigram emission (u'district', u'attorney'), counts = 3.0
+Bigram emission (u'Manhattan', u'district'), counts = 3.0
+Bigram emission (u'Construction', u'Authority'), counts = 3.0
+Bigram emission (u'crime', u'family'), counts = 3.0
+Bigram emission (u'prosecutor', u'say'), counts = 3.0
+Bigram emission (u'School', u'Construction'), counts = 3.0
+Bigram emission (u'Colombo', u'crime'), counts = 3.0
+Bigram emission (u'Meyers', u'Pollock'), counts = 2.0
+Unigram emission: '**START_SENT**'. Counts = 20.0
+Unigram emission: 'say'. Counts = 18.0
+Unigram emission: 'company'. Counts = 16.0
+Unigram emission: 'accuse'. Counts = 13.0
+Unigram emission: 'scheme'. Counts = 10.0
+Unigram emission: 'money'. Counts = 9.0
+Unigram emission: 'Paciello'. Counts = 9.0
+Unigram emission: 'also'. Counts = 8.0
+Unigram emission: 'prosecutor'. Counts = 7.0
+Unigram emission: 'official'. Counts = 7.0
+Top 5 words followed by END_SENT: 
+[u'company', u'firm', u'customer', u'indictment', u'client']
+counts = [1.0, 1.0, 1.0, 1.0, 1.0]
+
+>> Topic 9 emission and counts: 
+Bigram emission (u'New', u'York'), counts = 131.0
+Bigram emission (u'Bank', u'New'), counts = 33.0
+Bigram emission (u'York', u'City'), counts = 13.0
+Bigram emission (u'York', '**END_SENT**'), counts = 13.0
+Bigram emission (u'Edwards', u'Berlin'), counts = 12.0
+Bigram emission (u'money', u'laundering'), counts = 11.0
+Bigram emission (u'York', u'State'), counts = 11.0
+Bigram emission (u'New', u'Jersey'), counts = 10.0
+Bigram emission (u'York', u'Times'), counts = 7.0
+Bigram emission (u'First', u'Alliance'), counts = 7.0
+Bigram emission ('**START_SENT**', u'New'), counts = 6.0
+Bigram emission (u'plead', u'guilty'), counts = 6.0
+Bigram emission (u'federal', u'prosecutor'), counts = 6.0
+Bigram emission (u'federal', u'authority'), counts = 6.0
+Bigram emission (u'former', u'Bank'), counts = 5.0
+Unigram emission: 'New'. Counts = 152.0
+Unigram emission: '**START_SENT**'. Counts = 141.0
+Unigram emission: 'York'. Counts = 131.0
+Unigram emission: 'say'. Counts = 64.0
+Unigram emission: 'Bank'. Counts = 37.0
+Unigram emission: 'charge'. Counts = 30.0
+Unigram emission: 'Edwards'. Counts = 27.0
+Unigram emission: 'federal'. Counts = 24.0
+Unigram emission: 'also'. Counts = 23.0
+Unigram emission: 'bank'. Counts = 23.0
+Top 5 words followed by END_SENT: 
+[u'York', u'say', u'Jersey', u'year', u'Amendment']
+counts = [13.0, 5.0, 3.0, 3.0, 3.0]
+
+>> Topic 10 emission and counts: 
+Bigram emission (u'real', u'estate'), counts = 31.0
+Bigram emission (u'New', u'York'), counts = 14.0
+Bigram emission (u'mother', u'son'), counts = 13.0
+Bigram emission ('**START_SENT**', u'Kimes'), counts = 13.0
+Bigram emission (u'nonprofit', u'group'), counts = 11.0
+Bigram emission (u'town', u'house'), counts = 10.0
+Bigram emission (u'Silverman', u'body'), counts = 9.0
+Bigram emission (u'Crocker', u'Snyder'), counts = 8.0
+Bigram emission (u'Upper', u'East'), counts = 8.0
+Bigram emission (u'East', u'Side'), counts = 8.0
+Bigram emission (u'prosecutor', u'say'), counts = 8.0
+Bigram emission (u'Supreme', u'Court'), counts = 7.0
+Bigram emission (u'Irene', u'Silverman'), counts = 7.0
+Bigram emission (u'Kenneth', u'Kimes'), counts = 7.0
+Bigram emission (u'Sante', u'Kenneth'), counts = 6.0
+Unigram emission: '**START_SENT**'. Counts = 140.0
+Unigram emission: 'say'. Counts = 58.0
+Unigram emission: 'Kimes'. Counts = 53.0
+Unigram emission: 'Silverman'. Counts = 51.0
+Unigram emission: 'prosecutor'. Counts = 33.0
+Unigram emission: 'estate'. Counts = 33.0
+Unigram emission: 'real'. Counts = 31.0
+Unigram emission: 'house'. Counts = 29.0
+Unigram emission: 'body'. Counts = 29.0
+Unigram emission: 'murder'. Counts = 29.0
+Top 5 words followed by END_SENT: 
+[u'say', u'housing', u'Manhattan', u'find', u'body']
+counts = [6.0, 3.0, 3.0, 3.0, 3.0]
+
+>> Topic 11 emission and counts: 
+Bigram emission (u'absentee', u'ballot'), counts = 25.0
+Bigram emission (u'Health', u'Department'), counts = 24.0
+Bigram emission (u'plead', u'guilty'), counts = 17.0
+Bigram emission (u'Justice', u'Department'), counts = 14.0
+Bigram emission (u'last', u'month'), counts = 10.0
+Bigram emission (u'ballot', '**END_SENT**'), counts = 7.0
+Bigram emission (u'official', u'say'), counts = 7.0
+Bigram emission (u'New', u'York'), counts = 6.0
+Bigram emission (u'attorney', u'general'), counts = 6.0
+Bigram emission (u'United', u'States'), counts = 6.0
+Bigram emission (u'food', u'stamp'), counts = 6.0
+Bigram emission (u'prosecutor', u'say'), counts = 6.0
+Bigram emission ('**START_SENT**', u'last'), counts = 6.0
+Bigram emission (u'organized', u'crime'), counts = 6.0
+Bigram emission (u'inspector', u'general'), counts = 6.0
+Unigram emission: '**START_SENT**'. Counts = 181.0
+Unigram emission: 'say'. Counts = 90.0
+Unigram emission: 'charge'. Counts = 72.0
+Unigram emission: 'ballot'. Counts = 60.0
+Unigram emission: 'Department'. Counts = 53.0
+Unigram emission: 'election'. Counts = 36.0
+Unigram emission: 'official'. Counts = 34.0
+Unigram emission: 'year'. Counts = 32.0
+Unigram emission: 'absentee'. Counts = 29.0
+Unigram emission: 'fraud'. Counts = 29.0
+Top 5 words followed by END_SENT: 
+[u'ballot', u'fraud', u'day', u'say', u'month']
+counts = [7.0, 4.0, 4.0, 3.0, 3.0]
+
+>> Topic 12 emission and counts: 
+Bigram emission (u'government', u'say'), counts = 6.0
+Bigram emission ('**START_SENT**', u'government'), counts = 6.0
+Bigram emission (u'New', u'York'), counts = 5.0
+Bigram emission (u'seek', u'comment'), counts = 5.0
+Bigram emission (u'phone', u'call'), counts = 5.0
+Bigram emission (u'federal', u'government'), counts = 5.0
+Bigram emission (u'government', '**END_SENT**'), counts = 4.0
+Bigram emission (u'call', u'seek'), counts = 4.0
+Bigram emission (u'government', u'also'), counts = 4.0
+Bigram emission (u'authority', u'say'), counts = 4.0
+Bigram emission (u'say', '**END_SENT**'), counts = 4.0
+Bigram emission (u'say', u'government'), counts = 3.0
+Bigram emission (u'return', u'call'), counts = 3.0
+Bigram emission (u'official', u'say'), counts = 3.0
+Bigram emission (u'Santo', u'Domingo'), counts = 3.0
+Unigram emission: '**START_SENT**'. Counts = 81.0
+Unigram emission: 'government'. Counts = 76.0
+Unigram emission: 'say'. Counts = 52.0
+Unigram emission: 'call'. Counts = 17.0
+Unigram emission: 'company'. Counts = 15.0
+Unigram emission: 'former'. Counts = 14.0
+Unigram emission: 'investigation'. Counts = 13.0
+Unigram emission: 'one'. Counts = 13.0
+Unigram emission: 'consulate'. Counts = 13.0
+Unigram emission: 'official'. Counts = 13.0
+Top 5 words followed by END_SENT: 
+[u'say', u'government', u'official', u'case', u'proof']
+counts = [4.0, 4.0, 2.0, 2.0, 2.0]
+
+>> Topic 13 emission and counts: 
+Bigram emission (u'New', u'York'), counts = 12.0
+Bigram emission (u'United', u'States'), counts = 9.0
+Bigram emission ('**START_SENT**', u'make'), counts = 8.0
+Bigram emission (u'tax', u'return'), counts = 7.0
+Bigram emission (u'bank', u'account'), counts = 7.0
+Bigram emission (u'make', u'clear'), counts = 7.0
+Bigram emission (u'Ernst', u'Schwitters'), counts = 6.0
+Bigram emission (u'yesterday', '**END_SENT**'), counts = 5.0
+Bigram emission (u'con', u'artist'), counts = 5.0
+Bigram emission (u'say', '**END_SENT**'), counts = 5.0
+Bigram emission (u'States', u'attorney'), counts = 4.0
+Bigram emission ('**START_SENT**', u'Marlborough'), counts = 4.0
+Bigram emission (u'bank', u'loan'), counts = 4.0
+Bigram emission ('**START_SENT**', u'say'), counts = 4.0
+Bigram emission ('**START_SENT**', u'last'), counts = 3.0
+Unigram emission: '**START_SENT**'. Counts = 139.0
+Unigram emission: 'make'. Counts = 67.0
+Unigram emission: 'court'. Counts = 35.0
+Unigram emission: 'case'. Counts = 24.0
+Unigram emission: 'say'. Counts = 23.0
+Unigram emission: 'Schwitters'. Counts = 23.0
+Unigram emission: 'yesterday'. Counts = 20.0
+Unigram emission: 'bank'. Counts = 18.0
+Unigram emission: 'Marlborough'. Counts = 18.0
+Unigram emission: 'clear'. Counts = 17.0
+Top 5 words followed by END_SENT: 
+[u'say', u'yesterday', u'return', u'make', u'case']
+counts = [5.0, 5.0, 3.0, 3.0, 3.0]
+
+>> Topic 14 emission and counts: 
+Bigram emission (u'finger', u'imaging'), counts = 14.0
+Bigram emission (u'Vicente', u'Fox'), counts = 9.0
+Bigram emission (u'New', u'York'), counts = 8.0
+Bigram emission (u'emission', u'test'), counts = 8.0
+Bigram emission (u'White', u'House'), counts = 6.0
+Bigram emission (u'Fox', u'Quesada'), counts = 6.0
+Bigram emission (u'Revolutionary', u'Party'), counts = 6.0
+Bigram emission (u'institutional', u'Revolutionary'), counts = 6.0
+Bigram emission (u'National', u'Action'), counts = 5.0
+Bigram emission (u'opposition', u'candidate'), counts = 5.0
+Bigram emission (u'presidential', u'election'), counts = 5.0
+Bigram emission (u'television', u'network'), counts = 5.0
+Bigram emission (u'official', u'say'), counts = 5.0
+Bigram emission (u'govern', u'party'), counts = 5.0
+Bigram emission (u'welfare', u'recipient'), counts = 4.0
+Unigram emission: '**START_SENT**'. Counts = 80.0
+Unigram emission: 'say'. Counts = 42.0
+Unigram emission: 'state'. Counts = 30.0
+Unigram emission: 'official'. Counts = 28.0
+Unigram emission: 'campaign'. Counts = 26.0
+Unigram emission: 'government'. Counts = 23.0
+Unigram emission: 'PRI'. Counts = 23.0
+Unigram emission: 'candidate'. Counts = 22.0
+Unigram emission: 'election'. Counts = 21.0
+Unigram emission: 'program'. Counts = 21.0
+Top 5 words followed by END_SENT: 
+[u'campaign', u'fraud', u'government', u'state', u'PRI']
+counts = [3.0, 3.0, 2.0, 2.0, 2.0]
+
+>> Topic 15 emission and counts: 
+Bigram emission (u'Albert', u'Pirro'), counts = 102.0
+Bigram emission (u'Anthony', u'Pirro'), counts = 42.0
+Bigram emission (u'Jeanine', u'Pirro'), counts = 30.0
+Bigram emission (u'district', u'attorney'), counts = 26.0
+Bigram emission (u'Westchester', u'County'), counts = 25.0
+Bigram emission (u'Pirro', u'Westchester'), counts = 25.0
+Bigram emission (u'deduct', u'million'), counts = 25.0
+Bigram emission (u'personal', u'expense'), counts = 24.0
+Bigram emission ('**START_SENT**', u'Pirro'), counts = 21.0
+Bigram emission (u'improperly', u'deduct'), counts = 19.0
+Bigram emission (u'expense', u'business'), counts = 19.0
+Bigram emission (u'real', u'estate'), counts = 18.0
+Bigram emission (u'million', u'personal'), counts = 18.0
+Bigram emission (u'accountant', u'Anthony'), counts = 16.0
+Bigram emission (u'brother', u'accountant'), counts = 16.0
+Unigram emission: 'Pirro'. Counts = 391.0
+Unigram emission: '**START_SENT**'. Counts = 228.0
+Unigram emission: 'Albert'. Counts = 110.0
+Unigram emission: 'say'. Counts = 72.0
+Unigram emission: 'tax'. Counts = 70.0
+Unigram emission: 'trial'. Counts = 65.0
+Unigram emission: 'lawyer'. Counts = 65.0
+Unigram emission: 'brother'. Counts = 63.0
+Unigram emission: 'personal'. Counts = 59.0
+Unigram emission: 'one'. Counts = 56.0
+Top 5 words followed by END_SENT: 
+[u'Pirro', u'business', u'expenditure', u'expense', u'say']
+counts = [12.0, 9.0, 8.0, 8.0, 5.0]
+
+>> Topic 16 emission and counts: 
+Bigram emission (u'District', u'Court'), counts = 7.0
+Bigram emission (u'United', u'States'), counts = 6.0
+Bigram emission (u'Judge', u'Sauls'), counts = 5.0
+Bigram emission (u'States', u'District'), counts = 5.0
+Bigram emission (u'George', u'Gallego'), counts = 4.0
+Bigram emission (u'Gore', u'lawyer'), counts = 3.0
+Bigram emission (u'federal', u'prosecutor'), counts = 3.0
+Bigram emission (u'Judge', u'Parker'), counts = 3.0
+Bigram emission (u'Federal', u'District'), counts = 3.0
+Bigram emission (u'potential', u'juror'), counts = 3.0
+Bigram emission (u'Gallego', u'Elbarki'), counts = 2.0
+Bigram emission (u'Barrington', u'Parker'), counts = 2.0
+Bigram emission (u'could', u'help'), counts = 2.0
+Bigram emission (u'would', u'put'), counts = 2.0
+Bigram emission (u'Supreme', u'Court'), counts = 2.0
+Unigram emission: '**START_SENT**'. Counts = 23.0
+Unigram emission: 'Judge'. Counts = 17.0
+Unigram emission: 'would'. Counts = 16.0
+Unigram emission: 'say'. Counts = 13.0
+Unigram emission: 'lawyer'. Counts = 12.0
+Unigram emission: 'case'. Counts = 12.0
+Unigram emission: 'could'. Counts = 10.0
+Unigram emission: 'Gore'. Counts = 9.0
+Unigram emission: 'District'. Counts = 9.0
+Unigram emission: 'Court'. Counts = 9.0
+Top 5 words followed by END_SENT: 
+[u'fair', u'result', u'prosecutor', u'side', u'consider']
+counts = [1.0, 1.0, 1.0, 1.0, 1.0]
+
+>> Topic 17 emission and counts: 
+Bigram emission (u'Democratic', u'Party'), counts = 6.0
+Bigram emission (u'finger', u'imaging'), counts = 5.0
+Bigram emission (u'govern', u'party'), counts = 5.0
+Bigram emission (u'fail', u'pension'), counts = 4.0
+Bigram emission (u'pension', u'plan'), counts = 4.0
+Bigram emission (u'party', u'leader'), counts = 3.0
+Bigram emission (u'tour', u'operator'), counts = 3.0
+Bigram emission (u'year', u'ago'), counts = 3.0
+Bigram emission (u'party', '**END_SENT**'), counts = 3.0
+Bigram emission (u'Integrated', u'Management'), counts = 3.0
+Bigram emission (u'Reform', u'Party'), counts = 3.0
+Bigram emission (u'dinner', u'party'), counts = 3.0
+Bigram emission (u'Reyes', u'Heroles'), counts = 3.0
+Bigram emission (u'charter', u'operator'), counts = 3.0
+Bigram emission (u'comptroller', u'general'), counts = 3.0
+Unigram emission: '**START_SENT**'. Counts = 64.0
+Unigram emission: 'party'. Counts = 44.0
+Unigram emission: 'say'. Counts = 17.0
+Unigram emission: 'Cooks'. Counts = 14.0
+Unigram emission: 'mayor'. Counts = 13.0
+Unigram emission: 'Party'. Counts = 13.0
+Unigram emission: 'year'. Counts = 12.0
+Unigram emission: 'Buchanan'. Counts = 12.0
+Unigram emission: 'people'. Counts = 11.0
+Unigram emission: 'Hagans'. Counts = 11.0
+Top 5 words followed by END_SENT: 
+[u'party', u'primary', u'organization', u'fail', u'say']
+counts = [3.0, 2.0, 1.0, 1.0, 1.0]
+
+>> Topic 18 emission and counts: 
+Bigram emission (u'security', u'fraud'), counts = 8.0
+Bigram emission (u'plead', u'guilty'), counts = 8.0
+Bigram emission (u'vote', u'fraud'), counts = 7.0
+Bigram emission (u'union', u'local'), counts = 5.0
+Bigram emission (u'PRI', u'member'), counts = 5.0
+Bigram emission (u'Justice', u'Department'), counts = 4.0
+Bigram emission (u'former', u'president'), counts = 4.0
+Bigram emission (u'official', u'plead'), counts = 3.0
+Bigram emission (u'Steven', u'Madden'), counts = 3.0
+Bigram emission (u'two', u'man'), counts = 3.0
+Bigram emission (u'polling', u'place'), counts = 3.0
+Bigram emission (u'three', u'year'), counts = 3.0
+Bigram emission (u'charge', u'security'), counts = 2.0
+Bigram emission (u'union', u'official'), counts = 2.0
+Bigram emission ('**START_SENT**', u'institute'), counts = 2.0
+Unigram emission: '**START_SENT**'. Counts = 28.0
+Unigram emission: 'vote'. Counts = 24.0
+Unigram emission: 'fraud'. Counts = 24.0
+Unigram emission: 'official'. Counts = 16.0
+Unigram emission: 'union'. Counts = 11.0
+Unigram emission: 'say'. Counts = 11.0
+Unigram emission: 'former'. Counts = 11.0
+Unigram emission: 'security'. Counts = 11.0
+Unigram emission: 'two'. Counts = 10.0
+Unigram emission: 'member'. Counts = 10.0
+Top 5 words followed by END_SENT: 
+[u'vote', u'fraud', u'internet', u'network', u'security']
+counts = [2.0, 2.0, 1.0, 1.0, 1.0]
+
+>> Topic 19 emission and counts: 
+Bigram emission (u'United', u'States'), counts = 5.0
+Bigram emission (u'million', u'school'), counts = 4.0
+Bigram emission (u'investment', u'firm'), counts = 4.0
+Bigram emission (u'say', u'Gibson'), counts = 3.0
+Bigram emission ('**START_SENT**', u'Gibson'), counts = 3.0
+Bigram emission (u'Irvington', u'Board'), counts = 3.0
+Bigram emission (u'William', u'Bernowich'), counts = 3.0
+Bigram emission (u'States', u'Attorney'), counts = 3.0
+Bigram emission (u'Essex', u'County'), counts = 3.0
+Bigram emission (u'first', u'black'), counts = 3.0
+Bigram emission (u'Board', u'Education'), counts = 3.0
+Bigram emission (u'vice', u'president'), counts = 3.0
+Bigram emission (u'consult', u'firm'), counts = 3.0
+Bigram emission (u'New', u'Jersey'), counts = 3.0
+Bigram emission (u'plead', u'guilty'), counts = 3.0
+Unigram emission: 'firm'. Counts = 32.0
+Unigram emission: '**START_SENT**'. Counts = 31.0
+Unigram emission: 'say'. Counts = 28.0
+Unigram emission: 'Gibson'. Counts = 22.0
+Unigram emission: 'charge'. Counts = 18.0
+Unigram emission: 'million'. Counts = 16.0
+Unigram emission: 'pay'. Counts = 15.0
+Unigram emission: 'Lee'. Counts = 13.0
+Unigram emission: 'Silvester'. Counts = 12.0
+Unigram emission: 'two'. Counts = 12.0
+Top 5 words followed by END_SENT: 
+[u'project', u'manner', u'job', u'attorney', u'County']
+counts = [2.0, 2.0, 2.0, 1.0, 1.0]
+
+>> Topic 20 emission and counts: 
+Bigram emission (u'defeat', u'two'), counts = 4.0
+Bigram emission (u'foundation', u'money'), counts = 3.0
+Bigram emission (u'make', u'peace'), counts = 3.0
+Bigram emission ('**START_SENT**', u'Fujimori'), counts = 3.0
+Bigram emission (u'industry', u'group'), counts = 3.0
+Bigram emission (u'hyperinflation', u'make'), counts = 3.0
+Bigram emission (u'two', u'terrorist'), counts = 3.0
+Bigram emission (u'use', u'open'), counts = 2.0
+Bigram emission (u'Los', u'Angeles'), counts = 2.0
+Bigram emission (u'son', u'bricklayer'), counts = 2.0
+Bigram emission (u'weight', u'loss'), counts = 2.0
+Bigram emission (u'money', u'use'), counts = 2.0
+Bigram emission (u'football', u'camp'), counts = 2.0
+Bigram emission (u'wait', u'day'), counts = 2.0
+Bigram emission (u'success', u'defeat'), counts = 2.0
+Unigram emission: '**START_SENT**'. Counts = 17.0
+Unigram emission: 'use'. Counts = 10.0
+Unigram emission: 'company'. Counts = 8.0
+Unigram emission: 'signature'. Counts = 8.0
+Unigram emission: 'group'. Counts = 8.0
+Unigram emission: 'million'. Counts = 7.0
+Unigram emission: 'say'. Counts = 7.0
+Unigram emission: 'foundation'. Counts = 6.0
+Unigram emission: 'campaign'. Counts = 6.0
+Unigram emission: 'electronic'. Counts = 6.0
+Top 5 words followed by END_SENT: 
+[u'undercut', u'service', u'child', u'people', u'feature']
+counts = [1.0, 1.0, 1.0, 1.0, 1.0]
+
+>> Topic 21 emission and counts: 
+Bigram emission (u'American', u'States'), counts = 36.0
+Bigram emission (u'Organization', u'American'), counts = 35.0
+Bigram emission ('**START_SENT**', u'Fujimori'), counts = 23.0
+Bigram emission (u'tally', u'sheet'), counts = 20.0
+Bigram emission (u'second', u'round'), counts = 19.0
+Bigram emission ('**START_SENT**', u'Toledo'), counts = 19.0
+Bigram emission (u'Alberto', u'Fujimori'), counts = 17.0
+Bigram emission (u'Alejandro', u'Toledo'), counts = 17.0
+Bigram emission (u'President', u'Alberto'), counts = 17.0
+Bigram emission (u'election', u'monitor'), counts = 15.0
+Bigram emission (u'election', '**END_SENT**'), counts = 14.0
+Bigram emission (u'Toledo', u'say'), counts = 13.0
+Bigram emission (u'United', u'States'), counts = 13.0
+Bigram emission (u'say', u'today'), counts = 12.0
+Bigram emission (u'presidential', u'election'), counts = 12.0
+Unigram emission: '**START_SENT**'. Counts = 221.0
+Unigram emission: 'election'. Counts = 159.0
+Unigram emission: 'Fujimori'. Counts = 128.0
+Unigram emission: 'say'. Counts = 99.0
+Unigram emission: 'vote'. Counts = 89.0
+Unigram emission: 'Toledo'. Counts = 88.0
+Unigram emission: 'would'. Counts = 49.0
+Unigram emission: 'States'. Counts = 49.0
+Unigram emission: 'today'. Counts = 48.0
+Unigram emission: 'count'. Counts = 47.0
+Top 5 words followed by END_SENT: 
+[u'election', u'vote', u'round', u'ballot', u'count']
+counts = [14.0, 10.0, 5.0, 4.0, 4.0]

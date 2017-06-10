@@ -1,0 +1,384 @@
+=====================================================
+   Tagger Info for Olympic Games.pkl
+=====================================================
+>> Total cluster #:11
+>> Vocabulary size: 15585
+
+>> Top 5 probable prior clusters and prob:
+P(s_2) = 0.474991374422
+P(s_0) = 0.181084931386
+P(s_3) = 0.128877865847
+P(s_4) = 0.0728036102675
+P(s_7) = 0.0534676600678
+
+>> Top 5 Most probable Transition for all clusters:
+Topic 0: top 5 transtions are topics [2, 0, 4, 7, 3]
+P(s_2|s_0) = 0.472805729881
+P(s_0|s_0) = 0.213978771907
+P(s_4|s_0) = 0.104865446486
+P(s_7|s_0) = 0.0642651393529
+P(s_3|s_0) = 0.0617276201571
+Topic 1: top 5 transtions are topics [2, 1, 7, 0, 3]
+P(s_2|s_1) = 0.281359612118
+P(s_1|s_1) = 0.138771001998
+P(s_7|s_1) = 0.105865938124
+P(s_0|s_1) = 0.0729608742506
+P(s_3|s_1) = 0.0729608742506
+Topic 2: top 5 transtions are topics [2, 0, 7, 4, 3]
+P(s_2|s_2) = 0.259968888582
+P(s_0|s_2) = 0.215620928938
+P(s_7|s_2) = 0.148803336408
+P(s_4|s_2) = 0.133429377065
+P(s_3|s_2) = 0.126333703522
+Topic 3: top 5 transtions are topics [2, 0, 3, 7, 4]
+P(s_2|s_3) = 0.531982956371
+P(s_0|s_3) = 0.121771402195
+P(s_3|s_3) = 0.107626176189
+P(s_7|s_3) = 0.0675480358385
+P(s_4|s_3) = 0.048687734497
+Topic 4: top 5 transtions are topics [2, 0, 4, 7, 3]
+P(s_2|s_4) = 0.482138380805
+P(s_0|s_4) = 0.175046492329
+P(s_4|s_4) = 0.151749866306
+P(s_7|s_4) = 0.056445487124
+P(s_3|s_4) = 0.0500918618451
+Topic 5: top 5 transtions are topics [2, 0, 5, 3, 1]
+P(s_2|s_5) = 0.424813749035
+P(s_0|s_5) = 0.103876262098
+P(s_5|s_5) = 0.103876262098
+P(s_3|s_5) = 0.0593016111351
+P(s_1|s_5) = 0.0503866809424
+Topic 6: top 5 transtions are topics [2, 0, 6, 4, 3]
+P(s_2|s_6) = 0.286052907286
+P(s_0|s_6) = 0.135792168676
+P(s_6|s_6) = 0.125059258775
+P(s_4|s_6) = 0.0713947092714
+P(s_3|s_6) = 0.0606617993707
+Topic 7: top 5 transtions are topics [2, 0, 7, 4, 3]
+P(s_2|s_7) = 0.543892193711
+P(s_0|s_7) = 0.112981577481
+P(s_7|s_7) = 0.0998573962761
+P(s_4|s_7) = 0.0626722161953
+P(s_3|s_7) = 0.0561101255928
+Topic 8: top 5 transtions are topics [2, 8, 0, 7, 3]
+P(s_2|s_8) = 0.332578389021
+P(s_8|s_8) = 0.101416451697
+P(s_0|s_8) = 0.0909090909091
+P(s_7|s_8) = 0.0804017301216
+P(s_3|s_8) = 0.0698943693341
+Topic 9: top 5 transtions are topics [2, 7, 0, 3, 9]
+P(s_2|s_9) = 0.442636332383
+P(s_7|s_9) = 0.113482630287
+P(s_0|s_9) = 0.107708003935
+P(s_3|s_9) = 0.0730602458194
+P(s_9|s_9) = 0.0615109931143
+Topic 10: top 5 transtions are topics [8, 0, 1, 2, 3]
+P(s_8|s_10) = 0.108334180157
+P(s_0|s_10) = 0.0891665819843
+P(s_1|s_10) = 0.0891665819843
+P(s_2|s_10) = 0.0891665819843
+P(s_3|s_10) = 0.0891665819843
+
+
+>> Top 15 Bigram Emission for every cluster/topic (etcetera excluded) ranking from highest to lowest:
+
+>> Topic 0 emission and counts: 
+Bigram emission (u'United', u'States'), counts = 456.0
+Bigram emission (u'world', u'record'), counts = 101.0
+Bigram emission (u'track', u'field'), counts = 78.0
+Bigram emission (u'gold', u'medal'), counts = 62.0
+Bigram emission (u'world', u'championship'), counts = 58.0
+Bigram emission (u'States', u'Olympic'), counts = 55.0
+Bigram emission (u'say', '**END_SENT**'), counts = 43.0
+Bigram emission (u'time', '**END_SENT**'), counts = 43.0
+Bigram emission ('**START_SENT**', u'United'), counts = 41.0
+Bigram emission ('**START_SENT**', '**END_SENT**'), counts = 40.0
+Bigram emission (u'States', u'team'), counts = 39.0
+Bigram emission (u'world', u'champion'), counts = 38.0
+Bigram emission (u'minute', u'seconds'), counts = 36.0
+Bigram emission (u'team', '**END_SENT**'), counts = 33.0
+Bigram emission ('**START_SENT**', u'make'), counts = 33.0
+Unigram emission: '**START_SENT**'. Counts = 1796.0
+Unigram emission: 'United'. Counts = 465.0
+Unigram emission: 'States'. Counts = 460.0
+Unigram emission: 'world'. Counts = 327.0
+Unigram emission: 'time'. Counts = 289.0
+Unigram emission: 'team'. Counts = 264.0
+Unigram emission: 'Olympic'. Counts = 255.0
+Unigram emission: 'say'. Counts = 232.0
+Unigram emission: 'make'. Counts = 219.0
+Unigram emission: 'win'. Counts = 191.0
+Top 5 words followed by END_SENT: 
+[u'time', u'say', '**START_SENT**', u'team', u'year']
+counts = [43.0, 43.0, 40.0, 33.0, 24.0]
+
+>> Topic 1 emission and counts: 
+Bigram emission (u'Salt', u'Lake'), counts = 75.0
+Bigram emission (u'Lake', u'City'), counts = 73.0
+Bigram emission (u'City', u'bid'), counts = 12.0
+Bigram emission (u'Winter', u'Games'), counts = 12.0
+Bigram emission (u'Olympic', u'Committee'), counts = 9.0
+Bigram emission (u'International', u'Olympic'), counts = 8.0
+Bigram emission (u'Summer', u'Games'), counts = 7.0
+Bigram emission (u'City', u'scandal'), counts = 7.0
+Bigram emission (u'City', '**END_SENT**'), counts = 7.0
+Bigram emission (u'bribery', u'scandal'), counts = 6.0
+Bigram emission (u'City', u'bribery'), counts = 6.0
+Bigram emission (u'last', u'year'), counts = 6.0
+Bigram emission (u'United', u'States'), counts = 6.0
+Bigram emission (u'plead', u'guilty'), counts = 5.0
+Bigram emission ('**START_SENT**', u'say'), counts = 4.0
+Unigram emission: 'Lake'. Counts = 76.0
+Unigram emission: 'Salt'. Counts = 75.0
+Unigram emission: 'City'. Counts = 73.0
+Unigram emission: '**START_SENT**'. Counts = 68.0
+Unigram emission: 'Games'. Counts = 35.0
+Unigram emission: 'say'. Counts = 25.0
+Unigram emission: 'Olympic'. Counts = 25.0
+Unigram emission: 'Winter'. Counts = 23.0
+Unigram emission: 'scandal'. Counts = 22.0
+Unigram emission: 'bid'. Counts = 20.0
+Top 5 words followed by END_SENT: 
+[u'City', u'scandal', u'Winter', u'Games', u'Olympics']
+counts = [7.0, 3.0, 3.0, 3.0, 2.0]
+
+>> Topic 2 emission and counts: 
+Bigram emission (u'say', '**END_SENT**'), counts = 854.0
+Bigram emission ('**START_SENT**', u'think'), counts = 195.0
+Bigram emission ('**START_SENT**', u'know'), counts = 150.0
+Bigram emission (u'United', u'States'), counts = 127.0
+Bigram emission ('**START_SENT**', u'say'), counts = 120.0
+Bigram emission ('**START_SENT**', u'get'), counts = 113.0
+Bigram emission (u'gold', u'medal'), counts = 111.0
+Bigram emission ('**START_SENT**', u'go'), counts = 110.0
+Bigram emission ('**START_SENT**', u'one'), counts = 110.0
+Bigram emission (u'Olympics', '**END_SENT**'), counts = 108.0
+Bigram emission (u'team', '**END_SENT**'), counts = 106.0
+Bigram emission ('**START_SENT**', u'want'), counts = 96.0
+Bigram emission (u'year', '**END_SENT**'), counts = 91.0
+Bigram emission ('**START_SENT**', u'like'), counts = 84.0
+Bigram emission (u'year', u'ago'), counts = 83.0
+Unigram emission: '**START_SENT**'. Counts = 10783.0
+Unigram emission: 'say'. Counts = 2394.0
+Unigram emission: 'team'. Counts = 752.0
+Unigram emission: 'win'. Counts = 676.0
+Unigram emission: 'go'. Counts = 652.0
+Unigram emission: 'one'. Counts = 624.0
+Unigram emission: 'Olympic'. Counts = 623.0
+Unigram emission: 'get'. Counts = 571.0
+Unigram emission: 'would'. Counts = 563.0
+Unigram emission: 'year'. Counts = 552.0
+Top 5 words followed by END_SENT: 
+[u'say', u'Olympics', u'team', u'year', u'Games']
+counts = [854.0, 108.0, 106.0, 91.0, 64.0]
+
+>> Topic 3 emission and counts: 
+Bigram emission (u'Olympic', u'Committee'), counts = 57.0
+Bigram emission (u'International', u'Olympic'), counts = 48.0
+Bigram emission (u'Olympic', u'Games'), counts = 37.0
+Bigram emission (u'Games', '**END_SENT**'), counts = 28.0
+Bigram emission (u'United', u'States'), counts = 24.0
+Bigram emission (u'govern', u'body'), counts = 23.0
+Bigram emission (u'Antonio', u'Samaranch'), counts = 20.0
+Bigram emission (u'Juan', u'Antonio'), counts = 19.0
+Bigram emission (u'Summer', u'Games'), counts = 19.0
+Bigram emission ('**START_SENT**', u'Olympic'), counts = 19.0
+Bigram emission (u'say', '**END_SENT**'), counts = 16.0
+Bigram emission (u'president', u'International'), counts = 15.0
+Bigram emission (u'Olympic', u'committee'), counts = 13.0
+Bigram emission (u'Olympic', u'Park'), counts = 12.0
+Bigram emission (u'gold', u'medal'), counts = 12.0
+Unigram emission: '**START_SENT**'. Counts = 573.0
+Unigram emission: 'Olympic'. Counts = 321.0
+Unigram emission: 'Games'. Counts = 104.0
+Unigram emission: 'event'. Counts = 86.0
+Unigram emission: 'Sydney'. Counts = 81.0
+Unigram emission: 'say'. Counts = 79.0
+Unigram emission: 'woman'. Counts = 73.0
+Unigram emission: 'Committee'. Counts = 61.0
+Unigram emission: 'win'. Counts = 60.0
+Unigram emission: 'International'. Counts = 60.0
+Top 5 words followed by END_SENT: 
+[u'Games', u'say', u'event', u'Olympics', u'Committee']
+counts = [28.0, 16.0, 11.0, 8.0, 8.0]
+
+>> Topic 4 emission and counts: 
+Bigram emission (u'gold', u'medal'), counts = 437.0
+Bigram emission (u'win', u'gold'), counts = 123.0
+Bigram emission (u'medal', '**END_SENT**'), counts = 89.0
+Bigram emission (u'United', u'States'), counts = 74.0
+Bigram emission (u'five', u'gold'), counts = 46.0
+Bigram emission (u'win', u'five'), counts = 39.0
+Bigram emission (u'become', u'first'), counts = 36.0
+Bigram emission (u'Olympics', '**END_SENT**'), counts = 34.0
+Bigram emission (u'Olympic', u'gold'), counts = 33.0
+Bigram emission (u'Summer', u'Games'), counts = 31.0
+Bigram emission (u'win', u'medal'), counts = 29.0
+Bigram emission (u'win', u'first'), counts = 25.0
+Bigram emission ('**START_SENT**', u'win'), counts = 23.0
+Bigram emission (u'silver', u'medal'), counts = 22.0
+Bigram emission (u'two', u'gold'), counts = 21.0
+Unigram emission: '**START_SENT**'. Counts = 729.0
+Unigram emission: 'medal'. Counts = 637.0
+Unigram emission: 'gold'. Counts = 560.0
+Unigram emission: 'win'. Counts = 456.0
+Unigram emission: 'Olympic'. Counts = 143.0
+Unigram emission: 'first'. Counts = 134.0
+Unigram emission: 'Games'. Counts = 111.0
+Unigram emission: 'say'. Counts = 97.0
+Unigram emission: 'woman'. Counts = 94.0
+Unigram emission: 'Olympics'. Counts = 90.0
+Top 5 words followed by END_SENT: 
+[u'medal', u'Olympics', u'Games', u'say', u'gold']
+counts = [89.0, 34.0, 18.0, 17.0, 16.0]
+
+>> Topic 5 emission and counts: 
+Bigram emission (u'United', u'States'), counts = 22.0
+Bigram emission (u'point', u'guard'), counts = 11.0
+Bigram emission (u'Team', u'USA'), counts = 8.0
+Bigram emission (u'home', u'run'), counts = 8.0
+Bigram emission (u'Popov', u'Russia'), counts = 7.0
+Bigram emission (u'Aleksandr', u'Popov'), counts = 7.0
+Bigram emission (u'gold', u'medal'), counts = 6.0
+Bigram emission (u'Olympic', u'champion'), counts = 5.0
+Bigram emission (u'major', u'league'), counts = 5.0
+Bigram emission (u'States', u'Olympic'), counts = 4.0
+Bigram emission (u'champion', u'Aleksandr'), counts = 4.0
+Bigram emission (u'New', u'Zealand'), counts = 4.0
+Bigram emission (u'Seton', u'Hall'), counts = 4.0
+Bigram emission (u'seconds', u'remain'), counts = 3.0
+Bigram emission ('**START_SENT**', u'play'), counts = 3.0
+Unigram emission: '**START_SENT**'. Counts = 75.0
+Unigram emission: 'team'. Counts = 23.0
+Unigram emission: 'United'. Counts = 23.0
+Unigram emission: 'States'. Counts = 23.0
+Unigram emission: 'Olympic'. Counts = 22.0
+Unigram emission: 'point'. Counts = 21.0
+Unigram emission: 'play'. Counts = 20.0
+Unigram emission: 'run'. Counts = 15.0
+Unigram emission: 'season'. Counts = 15.0
+Unigram emission: 'home'. Counts = 14.0
+Top 5 words followed by END_SENT: 
+[u'year', u'game', u'season', u'Melbourne', u'leave']
+counts = [3.0, 3.0, 3.0, 2.0, 2.0]
+
+>> Topic 6 emission and counts: 
+Bigram emission (u'finish', u'line'), counts = 10.0
+Bigram emission (u'United', u'States'), counts = 7.0
+Bigram emission (u'Olympic', u'trial'), counts = 6.0
+Bigram emission (u'Opera', u'House'), counts = 5.0
+Bigram emission (u'line', '**END_SENT**'), counts = 5.0
+Bigram emission (u'Fleet', u'Center'), counts = 5.0
+Bigram emission (u'top', u'four'), counts = 4.0
+Bigram emission (u'across', u'finish'), counts = 3.0
+Bigram emission (u'cross', u'finish'), counts = 3.0
+Bigram emission (u'bottom', u'line'), counts = 3.0
+Bigram emission (u'States', u'Olympic'), counts = 3.0
+Bigram emission (u'man', u'preliminary'), counts = 3.0
+Bigram emission (u'Antonio', u'Samaranch'), counts = 3.0
+Bigram emission (u'world', u'Olympic'), counts = 2.0
+Bigram emission ('**START_SENT**', u'first'), counts = 2.0
+Unigram emission: '**START_SENT**'. Counts = 44.0
+Unigram emission: 'line'. Counts = 25.0
+Unigram emission: 'Olympic'. Counts = 21.0
+Unigram emission: 'trial'. Counts = 16.0
+Unigram emission: 'finish'. Counts = 12.0
+Unigram emission: 'Games'. Counts = 12.0
+Unigram emission: 'Olympics'. Counts = 11.0
+Unigram emission: 'man'. Counts = 11.0
+Unigram emission: 'four'. Counts = 9.0
+Unigram emission: 'world'. Counts = 9.0
+Top 5 words followed by END_SENT: 
+[u'line', u'team', u'year', u'place', u'Games']
+counts = [5.0, 2.0, 2.0, 2.0, 2.0]
+
+>> Topic 7 emission and counts: 
+Bigram emission (u'Games', '**END_SENT**'), counts = 54.0
+Bigram emission (u'Summer', u'Games'), counts = 54.0
+Bigram emission (u'test', u'positive'), counts = 50.0
+Bigram emission (u'Sydney', u'Games'), counts = 37.0
+Bigram emission (u'last', u'year'), counts = 32.0
+Bigram emission (u'last', u'week'), counts = 32.0
+Bigram emission (u'United', u'States'), counts = 22.0
+Bigram emission (u'drug', u'test'), counts = 22.0
+Bigram emission (u'Olympic', u'Committee'), counts = 19.0
+Bigram emission (u'year', u'ago'), counts = 19.0
+Bigram emission ('**START_SENT**', u'last'), counts = 18.0
+Bigram emission (u'year', '**END_SENT**'), counts = 17.0
+Bigram emission ('**START_SENT**', u'know'), counts = 17.0
+Bigram emission (u'Sydney', u'Australia'), counts = 16.0
+Bigram emission (u'know', '**END_SENT**'), counts = 14.0
+Unigram emission: '**START_SENT**'. Counts = 680.0
+Unigram emission: 'Games'. Counts = 216.0
+Unigram emission: 'test'. Counts = 159.0
+Unigram emission: 'last'. Counts = 147.0
+Unigram emission: 'Sydney'. Counts = 142.0
+Unigram emission: 'say'. Counts = 135.0
+Unigram emission: 'year'. Counts = 112.0
+Unigram emission: 'Olympic'. Counts = 96.0
+Unigram emission: 'athlete'. Counts = 92.0
+Unigram emission: 'drug'. Counts = 77.0
+Top 5 words followed by END_SENT: 
+[u'Games', u'year', u'know', u'Sydney', u'week']
+counts = [54.0, 17.0, 14.0, 13.0, 12.0]
+
+>> Topic 8 emission and counts: 
+Bigram emission (u'White', u'House'), counts = 4.0
+Bigram emission (u'Mayor', u'Giuliani'), counts = 4.0
+Bigram emission (u'say', u'Olympic'), counts = 4.0
+Bigram emission (u'West', u'Side'), counts = 4.0
+Bigram emission (u'news', u'conference'), counts = 4.0
+Bigram emission (u'Olympic', u'effort'), counts = 4.0
+Bigram emission (u'Olympic', u'Committee'), counts = 4.0
+Bigram emission (u'stadium', u'could'), counts = 4.0
+Bigram emission (u'International', u'Olympic'), counts = 3.0
+Bigram emission (u'state', u'official'), counts = 3.0
+Bigram emission (u'downtown', u'Sydney'), counts = 3.0
+Bigram emission (u'New', u'York'), counts = 3.0
+Bigram emission (u'Olympic', u'stadium'), counts = 3.0
+Bigram emission (u'rail', u'yard'), counts = 3.0
+Bigram emission (u'reduce', u'drag'), counts = 3.0
+Unigram emission: '**START_SENT**'. Counts = 62.0
+Unigram emission: 'say'. Counts = 48.0
+Unigram emission: 'Olympic'. Counts = 36.0
+Unigram emission: 'would'. Counts = 32.0
+Unigram emission: 'stadium'. Counts = 18.0
+Unigram emission: 'water'. Counts = 17.0
+Unigram emission: 'could'. Counts = 14.0
+Unigram emission: 'site'. Counts = 13.0
+Unigram emission: 'city'. Counts = 12.0
+Unigram emission: 'official'. Counts = 12.0
+Top 5 words followed by END_SENT: 
+[u'water', u'city', u'arena', u'Sydney', u'activity']
+counts = [3.0, 2.0, 2.0, 2.0, 2.0]
+
+>> Topic 9 emission and counts: 
+Bigram emission (u'Home', u'Depot'), counts = 12.0
+Bigram emission (u'United', u'States'), counts = 11.0
+Bigram emission ('**START_SENT**', u'athlete'), counts = 10.0
+Bigram emission (u'track', u'field'), counts = 7.0
+Bigram emission (u'gold', u'medal'), counts = 7.0
+Bigram emission (u'Games', '**END_SENT**'), counts = 6.0
+Bigram emission (u'athlete', '**END_SENT**'), counts = 6.0
+Bigram emission (u'Summer', u'Games'), counts = 6.0
+Bigram emission ('**START_SENT**', u'one'), counts = 6.0
+Bigram emission (u'long', u'jumper'), counts = 5.0
+Bigram emission ('**START_SENT**', u'long'), counts = 5.0
+Bigram emission (u'get', u'catch'), counts = 4.0
+Bigram emission (u'Americans', u'would'), counts = 4.0
+Bigram emission (u'many', u'athlete'), counts = 4.0
+Bigram emission (u'drug', '**END_SENT**'), counts = 4.0
+Unigram emission: '**START_SENT**'. Counts = 157.0
+Unigram emission: 'athlete'. Counts = 96.0
+Unigram emission: 'Games'. Counts = 34.0
+Unigram emission: 'say'. Counts = 26.0
+Unigram emission: 'use'. Counts = 21.0
+Unigram emission: 'one'. Counts = 20.0
+Unigram emission: 'drug'. Counts = 18.0
+Unigram emission: 'american'. Counts = 18.0
+Unigram emission: 'Olympic'. Counts = 18.0
+Unigram emission: 'Depot'. Counts = 14.0
+Top 5 words followed by END_SENT: 
+[u'athlete', u'Games', u'say', u'drug', u'ball']
+counts = [6.0, 6.0, 4.0, 4.0, 3.0]
+

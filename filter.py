@@ -2,6 +2,7 @@ filter_path = "/home/ml/jliu164/code/filter_detail/"
 doc_dir = '/home/ml/jliu164/corpus/nyt_corpus/content_annotated/'
 sum_dir = '/home/ml/jliu164/corpus/nyt_corpus/summary_annotated/'
 choice = 'content_annotated'
+root_dir = '/home/ml/jliu164/corpus/nyt_corpus/'
 
 from multiprocessing.dummy import Pool as ThreadPool
 from corenlpy import AnnotatedText as A
@@ -16,7 +17,10 @@ import matplotlib.patches as mpatches
 import re
 import pickle
 import itertools
+import json
+
 from tagger_test import group_files
+from preprocess import extract_tag
 
 def filter_length(dicts):
 	"""
@@ -79,7 +83,7 @@ def filter_topic((k,v)):
 	return k, np.mean(cache_doc),np.std(cache_doc),np.mean(cache_sum),np.std(cache_sum),long_sum
 
 
-def show_graph(topics, doc_mean, doc_std, sum_mean, sum_std):
+def plot_chart(topics, doc_mean, doc_std, sum_mean, sum_std):
 	"""
 	Given 4 lists of same length, plot bar chart
 	"""
@@ -132,7 +136,98 @@ def read_results():
 	return topics, doc_means, doc_stds, sum_means, sum_stds
 
 
-if __name__ == '__main__':
+
+
+def find_summary(yr):
+	"""
+	given a year, find the summaries that has >=3 sentences. return a list of such files.
+	return: ['full_path/XXXXXXX'...]
+	"""
+	p = sum_dir +str(yr)+"summary_annotated/"
+	files = os.listdir(p)
+	out = []
+	iterat = 0
+	for f in files:
+		f_path = p+f
+		f_id = f.split(".")[0]
+		try:
+			xml_sum = open(f_path).read()
+		except:
+			pass
+		else:
+			annotated_sum = A(xml_sum)
+			if len(annotated_sum.sentences) >= 3: 
+				out.append(f_id)
+				print(" Find one summary: "+f_id)
+			if(iterat % 500 == 0):
+				print("Scanned 500 files")
+			iterat +=1
+	print("There are %s summaries" %(len(out)))
+	pickle.dump(out, open(str(yr)+"tmp.pkl",'wb'))
+
+	# out = pickle.load(open(str(yr)+"tmp.pkl"))
+	output = extract_topics(yr, out)
+	pickle.dump(output, open("filter_results/"+str(yr)+"_filter_result.pkl",'wb'))
+	return output
+
+def extract_topics(yr,file_id ) :
+	"""
+	Given a year and a list of files, find the corresponding topics (indexing service). 
+	return: a list of topic tags at least as long as file_id
+	"""
+	file_path = root_dir+"data/"+str(yr)+"/"
+	out = []
+	with open(file_path+"file_to_topics.json") as json_data:
+		d = json.load(json_data)
+		for f in file_id:
+			topics = d[f][0] # a list of topics given this file
+			out.extend(topics)
+	return out
+
+
+def file_to_topic(root_path):
+	"""
+	for all the files under root_path, map file id to its topics.
+	Save result: "file_to_topics.json"
+	file_id:([Topics_by_indexing_service], [topics_by_online_service])
+	"""
+	processed = set()
+	out = {}
+	try:
+		with open(root_path+"file_to_topics.json") as json_data:
+			d = json.load(json_data)
+			processed = set(d.keys())
+	except:
+		print("No previous work available!")
+
+	for root, dirs, files in os.walk(root_path):
+		path = [os.path.join(root,name) for name in files if len(name.split("."))==2 and name.split(".")[1]=="xml"]
+		for p in path:
+			tag_indexing, tag_online= extract_tag(p)
+			file_id = p.split("/")[-1].split(".")[0]
+			if file_id in processed:
+				continue
+
+			if tag_indexing == set([]):
+				tag_indexing.update(["NO TAG"])
+			if tag_online == set([]):
+				tag_online.update(["NO TAG"])
+
+			# tmp = {file_id:(list(tag_indexing), list(tag_online))}
+			out[file_id] = (list(tag_indexing), list(tag_online))
+
+	with open(root_path+'file_to_topics.json','w') as f_json:
+		json.dump(out, f_json)
+	
+	print(">>Done for "+root_path)
+
+
+
+#################################################################################################
+#########################################   Testing    ##########################################
+#################################################################################################
+
+def test_chart():
 	# inputs = group_files(2002,2004,450,3000)
 	# print(inputs.keys())
 	
@@ -146,6 +241,53 @@ if __name__ == '__main__':
 		for z in zipped:
 			f.write(str(z))
 			f.write("\n")
-	show_graph(topics, doc_means, doc_stds, sum_means, sum_stds)
+	plot_chart(topics, doc_means, doc_stds, sum_means, sum_stds)
+
+
+def plot_hist(low,high):
+	need_process = []
+	results = []
+	for i in range(low,high):
+		try:
+			results_tmp = pickle.load(open("filter_results/"+str(i)+"_filter_results.pkl"))
+			results.extend(results_tmp)
+		except:
+			need_process.append(i)
+			print("Haven't processed "+str(i)+"yet!")
+	else:
+		pool = ThreadPool(6)
+		results_new = pool.map(find_summary, need_process)
+		# results [[topics_for_1999],[topics_for_2000]...]
+		pool.close()
+		pool.join()
+
+		results.extend(results_new)
+		dicts = dict(Counter(results))
+		centers = range(len(dicts))
+		plt.bar(centers, dicts.values(),align='center', color = 'g')
+		plt.xlabel('Topics')
+		plt.ylabel('# summaries (with >=3 sentences)')
+		plt.title('Topics vs. summaries available')
+		plt.xticks(centers, dicts.keys(),rotation = 'vertical')
+		plt.show()
+	
+
+
+
+if __name__ == '__main__':
+	pool = ThreadPool(6)
+	results = pool.map(find_summary, range(2000,2007))
+	pool.close()
+	pool.join()
+	print(" 1987 - 1999 All Done!")
+
+	# in_dir = ["/home/ml/jliu164/corpus/nyt_corpus/data/"+str(i)+"/" for i in range(2003,2008)]
+	# pool = ThreadPool(4)
+	# results = pool.map(file_to_topic,in_dir)
+	# pool.close()
+	# pool.join()
+  #	file_to_topic("/home/ml/jliu164/corpus/nyt_corpus/data/1999/02")
+
+	# plot_hist(1987,1997)
 
 	

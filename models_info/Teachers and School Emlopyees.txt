@@ -1,0 +1,492 @@
+=====================================================
+   Tagger Info for Teachers and School Employees.pkl
+=====================================================
+>> Total cluster #:14
+>> Vocabulary size: 12070
+
+>> Top 5 probable prior clusters and prob:
+P(s_6) = 0.207387141203
+P(s_0) = 0.169520696041
+P(s_2) = 0.161947407008
+P(s_3) = 0.07864122765
+P(s_1) = 0.0660190792625
+
+>> Top 5 Most probable Transition for all clusters:
+Topic 0: top 5 transtions are topics [3, 4, 0, 1, 2]
+P(s_3|s_0) = 0.174221952645
+P(s_4|s_0) = 0.174221952645
+P(s_0|s_0) = 0.138565180172
+P(s_1|s_0) = 0.0986295950013
+P(s_2|s_0) = 0.0943507823045
+Topic 1: top 5 transtions are topics [3, 4, 1, 0, 2]
+P(s_3|s_1) = 0.164302019425
+P(s_4|s_1) = 0.153941634788
+P(s_1|s_1) = 0.129767403968
+P(s_0|s_1) = 0.117680288558
+P(s_2|s_1) = 0.0917793269656
+Topic 2: top 5 transtions are topics [3, 4, 0, 2, 1]
+P(s_3|s_2) = 0.185766416829
+P(s_4|s_2) = 0.139395332368
+P(s_0|s_2) = 0.130121115476
+P(s_2|s_2) = 0.117137211826
+P(s_1|s_2) = 0.0893145611494
+Topic 3: top 5 transtions are topics [3, 4, 0, 1, 2]
+P(s_3|s_3) = 0.166936109923
+P(s_4|s_3) = 0.153338426476
+P(s_0|s_3) = 0.119797473974
+P(s_1|s_3) = 0.0980411804598
+P(s_2|s_3) = 0.0898825703918
+Topic 4: top 5 transtions are topics [3, 4, 1, 7, 0]
+P(s_3|s_4) = 0.19567242461
+P(s_4|s_4) = 0.180032222154
+P(s_1|s_4) = 0.095128265966
+P(s_7|s_4) = 0.0940111086478
+P(s_0|s_4) = 0.0928939513295
+Topic 5: top 5 transtions are topics [3, 4, 0, 1, 5]
+P(s_3|s_5) = 0.169805077931
+P(s_4|s_5) = 0.166549117905
+P(s_0|s_5) = 0.150269317774
+P(s_1|s_5) = 0.0949179973309
+P(s_5|s_5) = 0.0851501172527
+Topic 6: top 5 transtions are topics [3, 4, 1, 0, 2]
+P(s_3|s_6) = 0.179572958009
+P(s_4|s_6) = 0.150269317774
+P(s_1|s_6) = 0.114453757487
+P(s_0|s_6) = 0.111197797461
+P(s_2|s_6) = 0.107941837435
+Topic 7: top 5 transtions are topics [3, 4, 8, 7, 0]
+P(s_3|s_7) = 0.24911609683
+P(s_4|s_7) = 0.125897270804
+P(s_8|s_7) = 0.100323552195
+P(s_7|s_7) = 0.0979986686848
+P(s_0|s_7) = 0.0863742511352
+Topic 8: top 5 transtions are topics [3, 4, 8, 0, 1]
+P(s_3|s_8) = 0.240885174538
+P(s_4|s_8) = 0.174678873788
+P(s_8|s_8) = 0.0908175595053
+P(s_0|s_8) = 0.086403806122
+P(s_1|s_8) = 0.0775762993553
+Topic 9: top 5 transtions are topics [0, 3, 9, 7, 4]
+P(s_0|s_9) = 0.120164024556
+P(s_3|s_9) = 0.110275671748
+P(s_9|s_9) = 0.110275671748
+P(s_7|s_9) = 0.100387318939
+P(s_4|s_9) = 0.0904989661308
+Topic 10: top 5 transtions are topics [3, 4, 8, 0, 2]
+P(s_3|s_10) = 0.218743840528
+P(s_4|s_10) = 0.112433852518
+P(s_8|s_10) = 0.0911718549161
+P(s_0|s_10) = 0.0858563555156
+P(s_2|s_10) = 0.0752253567146
+Topic 11: top 5 transtions are topics [3, 4, 11, 2, 7]
+P(s_3|s_11) = 0.210872183034
+P(s_4|s_11) = 0.163797602095
+P(s_11|s_11) = 0.102877556174
+P(s_2|s_11) = 0.0890320911915
+P(s_7|s_11) = 0.0779557192058
+Topic 12: top 5 transtions are topics [3, 7, 4, 12, 0]
+P(s_3|s_12) = 0.184491015815
+P(s_7|s_12) = 0.0992593269699
+P(s_4|s_12) = 0.0870833714206
+P(s_12|s_12) = 0.0749074158712
+P(s_0|s_12) = 0.0627314603219
+Topic 13: top 5 transtions are topics [1, 11, 0, 2, 3]
+P(s_1|s_13) = 0.0856836188899
+P(s_11|s_13) = 0.0856836188899
+P(s_0|s_13) = 0.069052730185
+P(s_2|s_13) = 0.069052730185
+P(s_3|s_13) = 0.069052730185
+
+
+>> Top 15 Bigram Emission for every cluster/topic (etcetera excluded) ranking from highest to lowest:
+
+>> Topic 0 emission and counts: 
+Bigram emission (u'New', u'York'), counts = 100.0
+Bigram emission (u'teacher', '**END_SENT**'), counts = 84.0
+Bigram emission (u'merit', u'pay'), counts = 66.0
+Bigram emission (u'teacher', u'union'), counts = 62.0
+Bigram emission (u'public', u'school'), counts = 61.0
+Bigram emission (u'York', u'City'), counts = 55.0
+Bigram emission (u'Federation', u'Teachers'), counts = 52.0
+Bigram emission (u'say', '**END_SENT**'), counts = 46.0
+Bigram emission (u'United', u'Federation'), counts = 43.0
+Bigram emission (u'new', u'teacher'), counts = 35.0
+Bigram emission (u'school', '**END_SENT**'), counts = 34.0
+Bigram emission (u'last', u'year'), counts = 33.0
+Bigram emission ('**START_SENT**', u'teacher'), counts = 31.0
+Bigram emission (u'president', u'United'), counts = 29.0
+Bigram emission (u'Weingarten', u'president'), counts = 27.0
+Unigram emission: 'teacher'. Counts = 1005.0
+Unigram emission: '**START_SENT**'. Counts = 923.0
+Unigram emission: 'school'. Counts = 470.0
+Unigram emission: 'say'. Counts = 295.0
+Unigram emission: 'would'. Counts = 177.0
+Unigram emission: 'year'. Counts = 160.0
+Unigram emission: 'student'. Counts = 143.0
+Unigram emission: 'state'. Counts = 140.0
+Unigram emission: 'pay'. Counts = 136.0
+Unigram emission: 'union'. Counts = 130.0
+Top 5 words followed by END_SENT: 
+[u'teacher', u'say', u'school', u'year', u'classroom']
+counts = [84.0, 46.0, 34.0, 18.0, 10.0]
+
+>> Topic 1 emission and counts: 
+Bigram emission (u'school', '**END_SENT**'), counts = 87.0
+Bigram emission (u'public', u'school'), counts = 39.0
+Bigram emission (u'high', u'school'), counts = 38.0
+Bigram emission (u'school', u'district'), counts = 34.0
+Bigram emission (u'certified', u'teacher'), counts = 32.0
+Bigram emission (u'school', u'system'), counts = 32.0
+Bigram emission (u'summer', u'school'), counts = 30.0
+Bigram emission (u'school', u'board'), counts = 26.0
+Bigram emission (u'city', u'school'), counts = 25.0
+Bigram emission (u'fail', u'school'), counts = 23.0
+Bigram emission (u'New', u'York'), counts = 21.0
+Bigram emission ('**START_SENT**', u'school'), counts = 21.0
+Bigram emission (u'teacher', '**END_SENT**'), counts = 19.0
+Bigram emission (u'elementary', u'school'), counts = 19.0
+Bigram emission (u'school', u'year'), counts = 19.0
+Unigram emission: 'school'. Counts = 825.0
+Unigram emission: '**START_SENT**'. Counts = 751.0
+Unigram emission: 'teacher'. Counts = 370.0
+Unigram emission: 'say'. Counts = 267.0
+Unigram emission: 'student'. Counts = 167.0
+Unigram emission: 'state'. Counts = 160.0
+Unigram emission: 'district'. Counts = 118.0
+Unigram emission: 'year'. Counts = 103.0
+Unigram emission: 'city'. Counts = 98.0
+Unigram emission: 'many'. Counts = 82.0
+Top 5 words followed by END_SENT: 
+[u'school', u'teacher', u'year', u'system', u'say']
+counts = [87.0, 19.0, 17.0, 14.0, 13.0]
+
+>> Topic 2 emission and counts: 
+Bigram emission (u'New', u'York'), counts = 372.0
+Bigram emission (u'York', u'City'), counts = 200.0
+Bigram emission (u'year', '**END_SENT**'), counts = 43.0
+Bigram emission (u'public', u'school'), counts = 40.0
+Bigram emission ('**START_SENT**', u'New'), counts = 37.0
+Bigram emission (u'Board', u'Education'), counts = 37.0
+Bigram emission (u'year', u'ago'), counts = 36.0
+Bigram emission (u'City', u'school'), counts = 34.0
+Bigram emission (u'school', '**END_SENT**'), counts = 34.0
+Bigram emission (u'Harold', u'Levy'), counts = 33.0
+Bigram emission (u'last', u'year'), counts = 30.0
+Bigram emission (u'Chancellor', u'Harold'), counts = 26.0
+Bigram emission (u'school', u'system'), counts = 26.0
+Bigram emission (u'certified', u'teacher'), counts = 25.0
+Bigram emission (u'school', u'year'), counts = 23.0
+Unigram emission: '**START_SENT**'. Counts = 690.0
+Unigram emission: 'New'. Counts = 389.0
+Unigram emission: 'teacher'. Counts = 382.0
+Unigram emission: 'school'. Counts = 378.0
+Unigram emission: 'York'. Counts = 375.0
+Unigram emission: 'year'. Counts = 286.0
+Unigram emission: 'City'. Counts = 217.0
+Unigram emission: 'say'. Counts = 212.0
+Unigram emission: 'student'. Counts = 115.0
+Unigram emission: 'Levy'. Counts = 95.0
+Top 5 words followed by END_SENT: 
+[u'year', u'school', u'say', u'teacher', u'York']
+counts = [43.0, 34.0, 20.0, 20.0, 15.0]
+
+>> Topic 3 emission and counts: 
+Bigram emission (u'say', '**END_SENT**'), counts = 114.0
+Bigram emission ('**START_SENT**', u'get'), counts = 40.0
+Bigram emission ('**START_SENT**', u'want'), counts = 38.0
+Bigram emission ('**START_SENT**', u'one'), counts = 33.0
+Bigram emission (u'school', '**END_SENT**'), counts = 31.0
+Bigram emission ('**START_SENT**', u'say'), counts = 27.0
+Bigram emission ('**START_SENT**', u'would'), counts = 26.0
+Bigram emission (u'year', '**END_SENT**'), counts = 25.0
+Bigram emission ('**START_SENT**', u'many'), counts = 22.0
+Bigram emission ('**START_SENT**', u'Levy'), counts = 20.0
+Bigram emission ('**START_SENT**', u'see'), counts = 20.0
+Bigram emission ('**START_SENT**', u'also'), counts = 20.0
+Bigram emission (u'Miss', u'Bouterse'), counts = 20.0
+Bigram emission (u'job', '**END_SENT**'), counts = 19.0
+Bigram emission ('**START_SENT**', u'still'), counts = 18.0
+Unigram emission: '**START_SENT**'. Counts = 2671.0
+Unigram emission: 'say'. Counts = 432.0
+Unigram emission: 'school'. Counts = 259.0
+Unigram emission: 'get'. Counts = 223.0
+Unigram emission: 'student'. Counts = 191.0
+Unigram emission: 'teacher'. Counts = 187.0
+Unigram emission: 'would'. Counts = 155.0
+Unigram emission: 'one'. Counts = 149.0
+Unigram emission: 'work'. Counts = 149.0
+Unigram emission: 'make'. Counts = 135.0
+Top 5 words followed by END_SENT: 
+[u'say', u'school', u'year', u'job', u'teacher']
+counts = [114.0, 31.0, 25.0, 19.0, 18.0]
+
+>> Topic 4 emission and counts: 
+Bigram emission (u'say', '**END_SENT**'), counts = 280.0
+Bigram emission ('**START_SENT**', u'say'), counts = 80.0
+Bigram emission (u'school', '**END_SENT**'), counts = 45.0
+Bigram emission ('**START_SENT**', u'think'), counts = 40.0
+Bigram emission (u'Levy', u'say'), counts = 39.0
+Bigram emission (u'high', u'school'), counts = 38.0
+Bigram emission (u'say', u'would'), counts = 37.0
+Bigram emission (u'High', u'School'), counts = 37.0
+Bigram emission (u'summer', u'school'), counts = 28.0
+Bigram emission ('**START_SENT**', u'like'), counts = 26.0
+Bigram emission (u'teacher', '**END_SENT**'), counts = 25.0
+Bigram emission (u'New', u'York'), counts = 23.0
+Bigram emission (u'school', u'system'), counts = 22.0
+Bigram emission ('**START_SENT**', u'would'), counts = 22.0
+Bigram emission (u'class', '**END_SENT**'), counts = 21.0
+Unigram emission: '**START_SENT**'. Counts = 1704.0
+Unigram emission: 'say'. Counts = 1135.0
+Unigram emission: 'school'. Counts = 416.0
+Unigram emission: 'teacher'. Counts = 317.0
+Unigram emission: 'child'. Counts = 250.0
+Unigram emission: 'would'. Counts = 213.0
+Unigram emission: 'student'. Counts = 164.0
+Unigram emission: 'like'. Counts = 162.0
+Unigram emission: 'year'. Counts = 141.0
+Unigram emission: 'parent'. Counts = 124.0
+Top 5 words followed by END_SENT: 
+[u'say', u'school', u'teacher', u'class', u'child']
+counts = [280.0, 45.0, 25.0, 21.0, 20.0]
+
+>> Topic 5 emission and counts: 
+Bigram emission (u'teacher', u'union'), counts = 30.0
+Bigram emission (u'New', u'York'), counts = 23.0
+Bigram emission ('**START_SENT**', u'Levy'), counts = 23.0
+Bigram emission (u'standardized', u'test'), counts = 23.0
+Bigram emission (u'last', u'year'), counts = 21.0
+Bigram emission (u'test', u'score'), counts = 21.0
+Bigram emission (u'summer', u'school'), counts = 19.0
+Bigram emission (u'year', '**END_SENT**'), counts = 16.0
+Bigram emission (u'last', u'month'), counts = 16.0
+Bigram emission (u'test', '**END_SENT**'), counts = 14.0
+Bigram emission (u'York', u'City'), counts = 13.0
+Bigram emission (u'certification', u'program'), counts = 13.0
+Bigram emission (u'Levy', u'say'), counts = 12.0
+Bigram emission (u'certification', u'exam'), counts = 12.0
+Bigram emission (u'alternative', u'certification'), counts = 12.0
+Unigram emission: '**START_SENT**'. Counts = 322.0
+Unigram emission: 'teacher'. Counts = 214.0
+Unigram emission: 'school'. Counts = 156.0
+Unigram emission: 'student'. Counts = 114.0
+Unigram emission: 'say'. Counts = 109.0
+Unigram emission: 'union'. Counts = 106.0
+Unigram emission: 'program'. Counts = 100.0
+Unigram emission: 'test'. Counts = 99.0
+Unigram emission: 'year'. Counts = 98.0
+Unigram emission: 'Levy'. Counts = 78.0
+Top 5 words followed by END_SENT: 
+[u'year', u'test', u'union', u'say', u'teacher']
+counts = [16.0, 14.0, 9.0, 9.0, 9.0]
+
+>> Topic 6 emission and counts: 
+Bigram emission (u'Board', u'Education'), counts = 64.0
+Bigram emission (u'New', u'York'), counts = 34.0
+Bigram emission ('**START_SENT**', u'Editor'), counts = 31.0
+Bigram emission (u'education', u'commissioner'), counts = 22.0
+Bigram emission (u'teacher', u'union'), counts = 21.0
+Bigram emission (u'state', u'education'), counts = 20.0
+Bigram emission (u'Richard', u'Mills'), counts = 20.0
+Bigram emission (u'York', u'City'), counts = 19.0
+Bigram emission (u'Education', u'Association'), counts = 16.0
+Bigram emission (u'Harold', u'Levy'), counts = 15.0
+Bigram emission (u'Education', '**END_SENT**'), counts = 13.0
+Bigram emission (u'certified', u'teacher'), counts = 12.0
+Bigram emission (u'commissioner', u'Richard'), counts = 11.0
+Bigram emission (u'New', u'Jersey'), counts = 11.0
+Bigram emission (u'Mills', u'state'), counts = 10.0
+Unigram emission: '**START_SENT**'. Counts = 283.0
+Unigram emission: 'teacher'. Counts = 178.0
+Unigram emission: 'Education'. Counts = 120.0
+Unigram emission: 'say'. Counts = 107.0
+Unigram emission: 'school'. Counts = 98.0
+Unigram emission: 'state'. Counts = 93.0
+Unigram emission: 'Board'. Counts = 76.0
+Unigram emission: 'union'. Counts = 73.0
+Unigram emission: 'education'. Counts = 62.0
+Unigram emission: 'would'. Counts = 61.0
+Top 5 words followed by END_SENT: 
+[u'Education', u'year', u'teacher', u'union', u'say']
+counts = [13.0, 9.0, 6.0, 5.0, 5.0]
+
+>> Topic 7 emission and counts: 
+Bigram emission (u'say', '**END_SENT**'), counts = 30.0
+Bigram emission (u'special', u'education'), counts = 28.0
+Bigram emission ('**START_SENT**', u'go'), counts = 25.0
+Bigram emission (u'education', '**END_SENT**'), counts = 22.0
+Bigram emission ('**START_SENT**', u'know'), counts = 21.0
+Bigram emission (u'year', '**END_SENT**'), counts = 15.0
+Bigram emission (u'school', u'system'), counts = 13.0
+Bigram emission (u'time', '**END_SENT**'), counts = 12.0
+Bigram emission (u'higher', u'education'), counts = 12.0
+Bigram emission (u'system', '**END_SENT**'), counts = 11.0
+Bigram emission ('**START_SENT**', u'make'), counts = 11.0
+Bigram emission (u'regular', u'classroom'), counts = 9.0
+Bigram emission (u'school', '**END_SENT**'), counts = 9.0
+Bigram emission (u'last', u'year'), counts = 9.0
+Bigram emission (u'year', u'say'), counts = 9.0
+Unigram emission: '**START_SENT**'. Counts = 562.0
+Unigram emission: 'say'. Counts = 187.0
+Unigram emission: 'education'. Counts = 169.0
+Unigram emission: 'go'. Counts = 109.0
+Unigram emission: 'school'. Counts = 98.0
+Unigram emission: 'year'. Counts = 89.0
+Unigram emission: 'make'. Counts = 79.0
+Unigram emission: 'time'. Counts = 68.0
+Unigram emission: 'know'. Counts = 65.0
+Unigram emission: 'teacher'. Counts = 64.0
+Top 5 words followed by END_SENT: 
+[u'say', u'education', u'year', u'time', u'system']
+counts = [30.0, 22.0, 15.0, 12.0, 11.0]
+
+>> Topic 8 emission and counts: 
+Bigram emission (u'say', '**END_SENT**'), counts = 25.0
+Bigram emission ('**START_SENT**', u'ask'), counts = 17.0
+Bigram emission ('**START_SENT**', u'need'), counts = 15.0
+Bigram emission ('**START_SENT**', u'take'), counts = 14.0
+Bigram emission (u'New', u'York'), counts = 14.0
+Bigram emission (u'teacher', '**END_SENT**'), counts = 12.0
+Bigram emission (u'year', '**END_SENT**'), counts = 10.0
+Bigram emission ('**START_SENT**', u'lot'), counts = 9.0
+Bigram emission ('**START_SENT**', u'feel'), counts = 9.0
+Bigram emission ('**START_SENT**', u'Moffett'), counts = 8.0
+Bigram emission (u'Los', u'Angeles'), counts = 8.0
+Bigram emission (u'Bronx', u'Prep'), counts = 8.0
+Bigram emission ('**START_SENT**', u'never'), counts = 8.0
+Bigram emission ('**START_SENT**', u'say'), counts = 7.0
+Bigram emission (u'percent', '**END_SENT**'), counts = 7.0
+Unigram emission: '**START_SENT**'. Counts = 616.0
+Unigram emission: 'say'. Counts = 134.0
+Unigram emission: 'teacher'. Counts = 133.0
+Unigram emission: 'take'. Counts = 78.0
+Unigram emission: 'teach'. Counts = 60.0
+Unigram emission: 'percent'. Counts = 60.0
+Unigram emission: 'need'. Counts = 58.0
+Unigram emission: 'student'. Counts = 56.0
+Unigram emission: 'ask'. Counts = 49.0
+Unigram emission: 'year'. Counts = 46.0
+Top 5 words followed by END_SENT: 
+[u'say', u'teacher', u'year', u'time', u'percent']
+counts = [25.0, 12.0, 10.0, 7.0, 7.0]
+
+>> Topic 9 emission and counts: 
+Bigram emission (u'Al', u'Gore'), counts = 17.0
+Bigram emission (u'George', u'Bush'), counts = 14.0
+Bigram emission (u'President', u'Al'), counts = 14.0
+Bigram emission (u'Vice', u'President'), counts = 12.0
+Bigram emission (u'Bush', u'Texas'), counts = 7.0
+Bigram emission (u'public', u'school'), counts = 6.0
+Bigram emission (u'Gore', u'George'), counts = 4.0
+Bigram emission (u'spend', u'billion'), counts = 4.0
+Bigram emission ('**START_SENT**', u'Bush'), counts = 4.0
+Bigram emission (u'federal', u'money'), counts = 4.0
+Bigram emission (u'Rodham', u'Clinton'), counts = 3.0
+Bigram emission (u'tax', u'cut'), counts = 3.0
+Bigram emission (u'federal', u'government'), counts = 3.0
+Bigram emission ('**START_SENT**', u'Gore'), counts = 3.0
+Bigram emission (u'Hillary', u'Rodham'), counts = 3.0
+Unigram emission: '**START_SENT**'. Counts = 48.0
+Unigram emission: 'school'. Counts = 40.0
+Unigram emission: 'Bush'. Counts = 35.0
+Unigram emission: 'Gore'. Counts = 31.0
+Unigram emission: 'education'. Counts = 30.0
+Unigram emission: 'teacher'. Counts = 21.0
+Unigram emission: 'would'. Counts = 18.0
+Unigram emission: 'federal'. Counts = 18.0
+Unigram emission: 'program'. Counts = 18.0
+Unigram emission: 'year'. Counts = 17.0
+Top 5 words followed by END_SENT: 
+[u'school', u'result', u'score', u'country', u'campaign']
+counts = [2.0, 1.0, 1.0, 1.0, 1.0]
+
+>> Topic 10 emission and counts: 
+Bigram emission ('**START_SENT**', u'one'), counts = 22.0
+Bigram emission (u'liberal', u'art'), counts = 12.0
+Bigram emission (u'day', '**END_SENT**'), counts = 12.0
+Bigram emission ('**START_SENT**', u'say'), counts = 8.0
+Bigram emission (u'say', '**END_SENT**'), counts = 8.0
+Bigram emission (u'one', u'day'), counts = 7.0
+Bigram emission (u'day', u'week'), counts = 6.0
+Bigram emission (u'hour', u'minute'), counts = 6.0
+Bigram emission (u'work', u'day'), counts = 5.0
+Bigram emission (u'teacher', u'work'), counts = 4.0
+Bigram emission (u'one', u'morning'), counts = 4.0
+Bigram emission (u'class', '**END_SENT**'), counts = 4.0
+Bigram emission (u'principal', u'day'), counts = 3.0
+Bigram emission (u'Rodham', u'Clinton'), counts = 3.0
+Bigram emission (u'work', u'two'), counts = 3.0
+Unigram emission: '**START_SENT**'. Counts = 153.0
+Unigram emission: 'one'. Counts = 86.0
+Unigram emission: 'day'. Counts = 64.0
+Unigram emission: 'say'. Counts = 26.0
+Unigram emission: 'teacher'. Counts = 25.0
+Unigram emission: 'work'. Counts = 24.0
+Unigram emission: 'school'. Counts = 21.0
+Unigram emission: 'student'. Counts = 19.0
+Unigram emission: 'class'. Counts = 18.0
+Unigram emission: 'art'. Counts = 17.0
+Top 5 words followed by END_SENT: 
+[u'day', u'say', u'class', u'one', u'week']
+counts = [12.0, 8.0, 4.0, 3.0, 3.0]
+
+>> Topic 11 emission and counts: 
+Bigram emission ('**START_SENT**', u'student'), counts = 42.0
+Bigram emission (u'high', u'school'), counts = 22.0
+Bigram emission (u'student', '**END_SENT**'), counts = 21.0
+Bigram emission (u'say', '**END_SENT**'), counts = 20.0
+Bigram emission (u'web', u'site'), counts = 15.0
+Bigram emission (u'school', u'student'), counts = 14.0
+Bigram emission (u'New', u'York'), counts = 14.0
+Bigram emission (u'graduate', u'student'), counts = 13.0
+Bigram emission (u'school', '**END_SENT**'), counts = 13.0
+Bigram emission (u'official', u'say'), counts = 11.0
+Bigram emission (u'Advanced', u'Placement'), counts = 11.0
+Bigram emission ('**START_SENT**', u'teacher'), counts = 10.0
+Bigram emission (u'student', u'say'), counts = 9.0
+Bigram emission (u'Placement', u'course'), counts = 8.0
+Bigram emission (u'percent', u'student'), counts = 8.0
+Unigram emission: '**START_SENT**'. Counts = 443.0
+Unigram emission: 'student'. Counts = 345.0
+Unigram emission: 'say'. Counts = 142.0
+Unigram emission: 'school'. Counts = 136.0
+Unigram emission: 'teacher'. Counts = 106.0
+Unigram emission: 'year'. Counts = 60.0
+Unigram emission: 'course'. Counts = 57.0
+Unigram emission: 'take'. Counts = 48.0
+Unigram emission: 'one'. Counts = 45.0
+Unigram emission: 'would'. Counts = 45.0
+Top 5 words followed by END_SENT: 
+[u'student', u'say', u'school', u'class', u'year']
+counts = [21.0, 20.0, 13.0, 7.0, 6.0]
+
+>> Topic 12 emission and counts: 
+Bigram emission (u'New', u'York'), counts = 4.0
+Bigram emission (u'business', '**END_SENT**'), counts = 3.0
+Bigram emission (u'district', u'superintendent'), counts = 3.0
+Bigram emission (u'Crew', u'bring'), counts = 2.0
+Bigram emission (u'tutoring', u'center'), counts = 2.0
+Bigram emission ('**START_SENT**', u'say'), counts = 2.0
+Bigram emission (u'say', '**END_SENT**'), counts = 2.0
+Bigram emission (u'around', u'country'), counts = 2.0
+Bigram emission (u'teach', u'America'), counts = 2.0
+Bigram emission (u'skill', u'level'), counts = 2.0
+Bigram emission (u'Crew', u'former'), counts = 2.0
+Bigram emission (u'like', u'business'), counts = 2.0
+Bigram emission (u'center', u'promise'), counts = 2.0
+Bigram emission (u'school', u'system'), counts = 2.0
+Bigram emission (u'program', u'hire'), counts = 2.0
+Unigram emission: '**START_SENT**'. Counts = 28.0
+Unigram emission: 'business'. Counts = 14.0
+Unigram emission: 'school'. Counts = 13.0
+Unigram emission: 'like'. Counts = 10.0
+Unigram emission: 'child'. Counts = 8.0
+Unigram emission: 'former'. Counts = 7.0
+Unigram emission: 'work'. Counts = 6.0
+Unigram emission: 'center'. Counts = 6.0
+Unigram emission: 'program'. Counts = 6.0
+Unigram emission: 'service'. Counts = 5.0
+Top 5 words followed by END_SENT: 
+[u'business', u'say', u'people', u'County', u'applicant']
+counts = [3.0, 2.0, 1.0, 1.0, 1.0]
+
