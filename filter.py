@@ -5,7 +5,7 @@ choice = 'content_annotated'
 root_dir = '/home/ml/jliu164/corpus/nyt_corpus/'
 
 from multiprocessing.dummy import Pool as ThreadPool
-# from corenlpy import AnnotatedText as A
+from corenlpy import AnnotatedText as A
 import os
 import numpy as np
 import matplotlib as mpl
@@ -18,6 +18,7 @@ import pickle
 import itertools
 import json
 from collections import Counter
+import pprint
 
 from tagger_test import group_files
 # from preprocess import extract_tag
@@ -163,11 +164,10 @@ def find_summary(yr):
 				print("Scanned 500 files")
 			iterat +=1
 	print("There are %s summaries" %(len(out)))
-	pickle.dump(out, open(str(yr)+"tmp.pkl",'wb'))
+	pickle.dump(out, open("filter_results/"+str(yr)+"tmp.pkl",'wb'))
 
-	# out = pickle.load(open(str(yr)+"tmp.pkl"))
-	output = extract_topics(yr, out)
-	pickle.dump(output, open("filter_results/"+str(yr)+"_filter_result.pkl",'wb'))
+	# output = extract_topics(yr, out)
+	# pickle.dump(output, open("filter_results/"+str(yr)+"_filter_result.pkl",'wb'))
 	return output
 
 def extract_topics(yr,file_id ) :
@@ -221,41 +221,6 @@ def file_to_topic(root_path):
 	
 	print(">>Done for "+root_path)
 
-def filter_dict(input_dict, threashold = 1):
-	"""
-	Given a dictionary, filter out the (k:v) pairs where v<=1. 
-	Return [0] dictionary pairs, [1] the indices of them
-	"""
-	out_0 = {k: v for k, v in input_dict.iteritems() if v>1}
-	out_1 = []
-	input_items = input_dict.items()
-	for i in range(len(input_items)):
-		if input_items[i][0] in out_0:
-			out_1.append(i)
-
-	return out_0, out_1
-
-#################################################################################################
-#########################################   Testing    ##########################################
-#################################################################################################
-
-def test_chart():
-	# inputs = group_files(2002,2004,450,3000)
-	# print(inputs.keys())
-	
-	# results = filter_length(inputs)
-	# pickle.dump(results, open("2002-2004result.pkl",'wb'))
-
-	topics, doc_means, doc_stds, sum_means, sum_stds = read_results()
-	zipped = zip(topics, doc_means, doc_stds, sum_means, sum_stds)
-	with open("Results/Length analysis.txt",'wb') as f:
-		f.write("topics, document length mean, document length std, summary length mean, summary length std\n")
-		for z in zipped:
-			f.write(str(z))
-			f.write("\n")
-	plot_chart(topics, doc_means, doc_stds, sum_means, sum_stds)
-
-
 def plot_hist(low,high):
 	need_process = []
 	results = []
@@ -285,8 +250,8 @@ def plot_hist(low,high):
 			print("Haven't processed "+str(i)+"yet!")
 	else:
 		plt.subplots_adjust(left=0.03, right=0.98, top=0.95, bottom=0.03, hspace = 0.9,wspace = 0.05)
-		# plt.show()
-		plt.savefig("details.png")
+		plt.show()
+		# plt.savefig("details.png")
 
 		# print("Making image...")
 		dicts = dict(Counter(results))
@@ -304,20 +269,92 @@ def plot_hist(low,high):
 		print(label_key)
 		plt.xticks(label_range, label_key.keys(),rotation = 'vertical', fontsize = 6)
 		plt.subplots_adjust(left=0.02, right=0.99, top=0.95, bottom=0.25)
-		plt.savefig("total.png")
+		# plt.savefig("total.png")
 		plt.show()
 
 		
+def filter_dict(input_dict, threashold = 1):
+	"""
+	Given a dictionary, filter out the (k:v) pairs where v<=1. 
+	Return [0] dictionary pairs, [1] the indices of them
+	"""
+	out_0 = {k: v for k, v in input_dict.iteritems() if v>1}
+	out_1 = []
+	input_items = input_dict.items()
+	for i in range(len(input_items)):
+		if input_items[i][0] in out_0:
+			out_1.append(i)
+
+	return out_0, out_1
+
+def sum_topic( yr, topic = None):
+	"""
+	Given a topic and a year, return all the summary id that is under given topic
+	"""
+	data_path = "/home/rldata/jingyun/nyt_corpus/data/"+str(yr)+"/topics_indexing_services.json"
+	try:
+		with open(data_path) as json_data:
+			d = json.load(json_data)
+	except:
+		print("Json data not available for year "+str(yr))
+		return
+	else:
+		i = np.random.random_integers(0,len(d)-1)
+		_topic = d.keys()[i] if topic is None else topic
+		print("topic %s has total %s files" %(_topic, len(d[_topic])))
+		ids = d[_topic][:10]
+		summaries = [load_sum(yr, i) for i in ids if 0 < get_length(yr, i) < 3]
+		return summaries
+
+
+def load_sum(yr, sum_id):
+	file_path = root_dir+"summary/"+str(yr)+"summary/"+sum_id+".txt"
+	try:
+		with open(file_path) as f:
+			out = f.read()
+			return out
+	except:
+		print("year %s, file id %s not available!" %(yr, sum_id))
+
+def get_length(yr, file_id):
+	file_path = sum_dir+str(yr)+"summary_annotated/"+str(file_id)+".txt.xml"
+	try:
+		xml_doc = open(file_path).read()
+	except:
+		print("Cannot Open doc: "+file_path)
+		return -1
+	else:
+		annotated_text = A(xml_doc)
+		# print(file_id)
+		return len(annotated_text.sentences)
+
+#################################################################################################
+#########################################   Testing    ##########################################
+#################################################################################################
+
+def test_chart():
+	# inputs = group_files(2002,2004,450,3000)
+	# print(inputs.keys())
 	
+	# results = filter_length(inputs)
+	# pickle.dump(results, open("2002-2004result.pkl",'wb'))
+
+	topics, doc_means, doc_stds, sum_means, sum_stds = read_results()
+	zipped = zip(topics, doc_means, doc_stds, sum_means, sum_stds)
+	with open("Results/Length analysis.txt",'wb') as f:
+		f.write("topics, document length mean, document length std, summary length mean, summary length std\n")
+		for z in zipped:
+			f.write(str(z))
+			f.write("\n")
+	plot_chart(topics, doc_means, doc_stds, sum_means, sum_stds)
 
 
 
 if __name__ == '__main__':
 	# pool = ThreadPool(6)
-	# results = pool.map(find_summary, range(2000,2007))
+	# results = pool.map(find_summary, range(1997,2004))
 	# pool.close()
 	# pool.join()
-	# print(" 1987 - 1999 All Done!")
 
 	# in_dir = ["/home/ml/jliu164/corpus/nyt_corpus/data/"+str(i)+"/" for i in range(2003,2008)]
 	# pool = ThreadPool(4)
@@ -326,6 +363,12 @@ if __name__ == '__main__':
 	# pool.join()
   #	file_to_topic("/home/ml/jliu164/corpus/nyt_corpus/data/1999/02")
 
-	plot_hist(1996,2008)
+	# plot_hist(1996,2008)
+
+	# topic = 'Copyrights'
+	# print('\n')
+	sums = sum_topic(1997)
+	pp = pprint.PrettyPrinter(indent=4)
+	pp.pprint(sums)
 
 	
