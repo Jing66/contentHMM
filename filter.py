@@ -5,22 +5,22 @@ choice = 'content_annotated'
 root_dir = '/home/ml/jliu164/corpus/nyt_corpus/'
 
 from multiprocessing.dummy import Pool as ThreadPool
-from corenlpy import AnnotatedText as A
+# from corenlpy import AnnotatedText as A
 import os
 import numpy as np
 import matplotlib as mpl
-if os.environ.get('DISPLAY','') == '':
-            #print('no display found. Using non-interactive Agg backend')
-    mpl.use('Agg')
+# if os.environ.get('DISPLAY','') == '':
+#     mpl.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import re
 import pickle
 import itertools
 import json
+from collections import Counter
 
 from tagger_test import group_files
-from preprocess import extract_tag
+# from preprocess import extract_tag
 
 def filter_length(dicts):
 	"""
@@ -221,7 +221,19 @@ def file_to_topic(root_path):
 	
 	print(">>Done for "+root_path)
 
+def filter_dict(input_dict, threashold = 1):
+	"""
+	Given a dictionary, filter out the (k:v) pairs where v<=1. 
+	Return [0] dictionary pairs, [1] the indices of them
+	"""
+	out_0 = {k: v for k, v in input_dict.iteritems() if v>1}
+	out_1 = []
+	input_items = input_dict.items()
+	for i in range(len(input_items)):
+		if input_items[i][0] in out_0:
+			out_1.append(i)
 
+	return out_0, out_1
 
 #################################################################################################
 #########################################   Testing    ##########################################
@@ -247,39 +259,65 @@ def test_chart():
 def plot_hist(low,high):
 	need_process = []
 	results = []
+	fig = plt.figure(figsize=(16, 7))
+	plt.rc('axes', labelsize=6)    # fontsize of the x and y labels
 	for i in range(low,high):
 		try:
-			results_tmp = pickle.load(open("filter_results/"+str(i)+"_filter_results.pkl"))
+			results_tmp = pickle.load(open("filter_results/"+str(i)+"_filter_result.pkl"))
+			if results_tmp == []:
+				print("Nothing available in year "+str(i))
+				continue
+			
+			local_dict = dict(Counter(results_tmp))
+			plt.subplot(4,4,i-low+1)
+			centers = range(len(local_dict))
+			plt.bar(centers, local_dict.values(),align='center', color = 'g')
+			# plt.xlabel('Topics', fontsize =8)
+			# plt.ylabel('# summaries', fontsize = 8)
+			plt.title('Year '+str(i), fontsize = 8)
+			
+			label_key, label_range = filter_dict(local_dict,1)
+			plt.xticks(label_range, label_key.keys(),fontsize = 6,rotation = 'vertical')
+
 			results.extend(results_tmp)
-		except:
+		except IOError:
 			need_process.append(i)
 			print("Haven't processed "+str(i)+"yet!")
 	else:
-		pool = ThreadPool(6)
-		results_new = pool.map(find_summary, need_process)
-		# results [[topics_for_1999],[topics_for_2000]...]
-		pool.close()
-		pool.join()
+		plt.subplots_adjust(left=0.03, right=0.98, top=0.95, bottom=0.03, hspace = 0.9,wspace = 0.05)
+		# plt.show()
+		plt.savefig("details.png")
 
-		results.extend(results_new)
+		# print("Making image...")
 		dicts = dict(Counter(results))
 		centers = range(len(dicts))
+
+		fig = plt.figure(figsize=(16, 7))
 		plt.bar(centers, dicts.values(),align='center', color = 'g')
 		plt.xlabel('Topics')
 		plt.ylabel('# summaries (with >=3 sentences)')
-		plt.title('Topics vs. summaries available')
-		plt.xticks(centers, dicts.keys(),rotation = 'vertical')
+		plt.title('Total Topics vs. summaries available')
+
+		# figure = plt.gcf() # get current figure
+		# figure.set_size_inches(len(dicts)*3, 3*int(0.75*len(dicts)))
+		label_key, label_range = filter_dict(dicts,1)
+		print(label_key)
+		plt.xticks(label_range, label_key.keys(),rotation = 'vertical', fontsize = 6)
+		plt.subplots_adjust(left=0.02, right=0.99, top=0.95, bottom=0.25)
+		plt.savefig("total.png")
 		plt.show()
+
+		
 	
 
 
 
 if __name__ == '__main__':
-	pool = ThreadPool(6)
-	results = pool.map(find_summary, range(2000,2007))
-	pool.close()
-	pool.join()
-	print(" 1987 - 1999 All Done!")
+	# pool = ThreadPool(6)
+	# results = pool.map(find_summary, range(2000,2007))
+	# pool.close()
+	# pool.join()
+	# print(" 1987 - 1999 All Done!")
 
 	# in_dir = ["/home/ml/jliu164/corpus/nyt_corpus/data/"+str(i)+"/" for i in range(2003,2008)]
 	# pool = ThreadPool(4)
@@ -288,6 +326,6 @@ if __name__ == '__main__':
 	# pool.join()
   #	file_to_topic("/home/ml/jliu164/corpus/nyt_corpus/data/1999/02")
 
-	# plot_hist(1987,1997)
+	plot_hist(1996,2008)
 
 	
