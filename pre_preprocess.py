@@ -5,7 +5,7 @@ import thread
 import unicodedata
 import threading
 import json
-
+import re
 
 ########################################################################################################
 ############################### extract topics from raw files 	##############################
@@ -62,8 +62,10 @@ def extract_tag_all(root_dir):
 					online_prod.update([(tag,item_index)])
 	f = open(root_dir+'topics_indexing_services.json','wb')
 	json.dump(index,f)
+	f.close()
 	f = open(root_dir + 'topics_online_producer.json','wb')
 	json.dump(online_prod,f)
+	f.close()
 
 ########################################################################################################
 ################## extract summary, full-article, headlines from raw files 	#########################
@@ -114,8 +116,8 @@ def extractall(root_dir):
 			name = p.split("/")[-1].split(".")[0]
 
 			# skip if contain non-ascii or some parts missing
-			if extraction[0]=="" or extraction[1]=="":
-				#print("missing part on "+name)			
+			if extraction[0]=="" or extraction[1]=="" or extraction[2]=="":
+				print("missing part on "+name)			
 				continue
 			for i in range(3):
 				f = open(process_path[i]+"/"+name+".txt","wb")
@@ -142,7 +144,7 @@ class myThreads(threading.Thread):
 def extract_multi(in_dir,start,finish):
 	threads = []
 	for i in range(start,finish+1):
-		path= in_dir+str(i)+'/'
+		path= in_dir+str(i)+"/"
 		thread = myThreads(path,i)
 		threads.append(thread)
 
@@ -173,7 +175,7 @@ def annotate_all(in_dir, out_dirs):
 
 	corenlpy.corenlp(in_dirs=in_dir, out_dir=out_dirs,
 		annotators=['tokenize','ssplit','pos','lemma','ner','parse','depparse','dcoref','relation'],
-		threads=12,output_format='xml')
+		threads=10,output_format='xml')
 	
 
 
@@ -212,13 +214,56 @@ def get_path(file_id):
 	return out[1]
 
 
+#################################################################################################
+################################ preprocess summary files ###################################
+#################################################################################################
+def substi(text):
+	"""
+	Find all ; and replace with '.' get rid of (M), photo(s)/drawing(s)
+	"""
+
+	text = re.sub(r'photo.|drawing.|map.|chart.',"", text)
+	text = re.sub(r'\([A-Z]\)','',text)
+
+	text_sep = text.split(";")
+	text_sep = [s.strip() for s in text_sep]
+	text_new = ". ".join(text_sep)
+
+
+	return text_new
+
+def substi_all(root_dir):
+	"""
+	For all files under root_dir, preprocess and write back
+	"""
+	l = os.listdir(root_dir)
+	for p in l:
+		_dir= root_dir+p
+		try:
+			with open(_dir) as f:
+				text = f.read()
+				text = substi(text)
+		except:
+			print("Cannot modify "+ _dir)
+			continue
+		try:
+			with open(_dir,'wb') as f:
+				f.write(text)
+		except:
+			print("Cannot write into "+ _dir)
+			continue
+
+	print(root_dir+" Done!")
+
+
+
 
 #######################################################################################################
 ################################################# Testing	###########################################
 #######################################################################################################
 
 # testing
-def test():
+def test_old():
 	# test extract
 	in_path ="/Users/liujingyun/Desktop/NLP/nyt_corpus/data/2007/02/04/1823747.xml"
 	
@@ -233,24 +278,25 @@ def test():
 	# f.close()
 
 	#test extractall
-	in_dir = "/home/ml/jliu164/corpus/nyt_corpus/data/"
-	in_dir_2006 = '/Users/liujingyun/Desktop/NLP/nyt_corpus/data/2006'
+	# in_dir =s
+	in_dir = '/Users/liujingyun/Desktop/NLP/nyt_corpus/data/2006'
+	in_dir_200701 = '/Users/liujingyun/Desktop/NLP/nyt_corpus/data/2007/01'
 	in_dir_200702 = '/Users/liujingyun/Desktop/NLP/nyt_corpus/data/2007/02'
 	tag_path = "/Users/liujingyun/Desktop/NLP/nyt_corpus/data/2006/01/02/1729112.xml"
-	#extractall(in_dir_2006)
+	#extractall(in_dir_200701)
 	# thread1 = myThreads(in_dir_200701,"0701")
 	# thread2 = myThreads(in_dir_200702,"0702")
 	# thread1.start()
 	# thread2.start()
 	#extract_multi(in_dir,2006,2007)
-	#extract_tag_all(in_dir)
+	extract_tag_all(in_dir)
 
 
 	
 	#test annotate_all
-	in_dir = '/Users/liujingyun/Desktop/NLP/nyt_corpus/data/1987/01'
-	out_dir = '/Users/liujingyun/Desktop/NLP/nyt_corpus/content_annotated'
-	annotate_all(in_dir, out_dir)
+	in_dir = '/Users/liujingyun/Desktop/NLP/nyt_corpus/data/2007content'
+	out_dir = '/Users/liujingyun/Desktop/NLP/nyt_corpus/summary_annotated'
+	#annotate_all(in_dir, out_dir)
 
 	for i in range(1987,2008):
 		in_path = '/Users/liujingyun/Desktop/NLP/nyt_corpus/data/'+str(i)+'content'
@@ -258,6 +304,11 @@ def test():
 		#annotate_all(in_path, out_path)
 
 
-if __name__ == '__main__':
-	test()
+def test_substi():
+	_dir= '/Users/liujingyun/Desktop/NLP/nyt_corpus/data/2007summary/'
+	substi_all(_dir)
 
+
+if __name__ == '__main__':
+	# test()
+	test_substi()

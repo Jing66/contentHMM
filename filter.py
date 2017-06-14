@@ -302,8 +302,11 @@ def sum_topic( yr, topic = None):
 		i = np.random.random_integers(0,len(d)-1)
 		_topic = d.keys()[i] if topic is None else topic
 		print("topic %s has total %s files" %(_topic, len(d[_topic])))
-		ids = d[_topic][:10]
-		summaries = [load_sum(yr, i) for i in ids if 0 < get_length(yr, i) < 3]
+		a = np.arange(len(d[_topic]))
+		np.random.shuffle(a)
+		a = a[:10]
+		ids = [d[_topic][i] for i in a.tolist()]
+ 		summaries = [load_sum(yr, i) for i in ids if 0 < get_length(yr, i) < 3]
 		return summaries
 
 
@@ -367,7 +370,7 @@ if __name__ == '__main__':
 
 	# topic = 'Copyrights'
 	# print('\n')
-	sums = sum_topic(1997)
+	sums = sum_topic(2000, "Summer Games")
 	pp = pprint.PrettyPrinter(indent=4)
 	pp.pprint(sums)
 
