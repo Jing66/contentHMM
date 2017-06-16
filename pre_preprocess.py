@@ -7,6 +7,8 @@ import threading
 import json
 import re
 
+from multiprocessing.dummy import Pool as ThreadPool
+
 ########################################################################################################
 ############################### extract topics from raw files 	##############################
 ########################################################################################################
@@ -66,6 +68,43 @@ def extract_tag_all(root_dir):
 	f = open(root_dir + 'topics_online_producer.json','wb')
 	json.dump(online_prod,f)
 	f.close()
+
+
+def file_to_topic(root_path):
+	"""
+	for all the files under root_path, map file id to its topics.
+	Save result: "file_to_topics.json"
+	file_id:([Topics_by_indexing_service], [topics_by_online_service])
+	"""
+	processed = set()
+	out = {}
+	try:
+		with open(root_path+"file_to_topics.json") as json_data:
+			d = json.load(json_data)
+			processed = set(d.keys())
+	except:
+		print("No previous work available!")
+
+	for root, dirs, files in os.walk(root_path):
+		path = [os.path.join(root,name) for name in files if len(name.split("."))==2 and name.split(".")[1]=="xml"]
+		for p in path:
+			tag_indexing, tag_online= extract_tag(p)
+			file_id = p.split("/")[-1].split(".")[0]
+			if file_id in processed:
+				continue
+
+			if tag_indexing == set([]):
+				tag_indexing.update(["NO TAG"])
+			if tag_online == set([]):
+				tag_online.update(["NO TAG"])
+
+			# tmp = {file_id:(list(tag_indexing), list(tag_online))}
+			out[file_id] = (list(tag_indexing), list(tag_online))
+
+	with open(root_path+'file_to_topics.json','w') as f_json:
+		json.dump(out, f_json)
+	print(">>Done for "+root_path)
+
 
 ########################################################################################################
 ################## extract summary, full-article, headlines from raw files 	#########################
@@ -222,11 +261,11 @@ def substi(text):
 	Find all ; and replace with '.' get rid of (M), photo(s)/drawing(s)
 	"""
 
-	text = re.sub(r'photo.|drawing.|map.|chart.',"", text)
+	text = re.sub(r'photo|drawing|map|chart|table|graph|diagram',"", text)
 	text = re.sub(r'\([A-Z]\)','',text)
 
-	text_sep = text.split(";")
-	text_sep = [s.strip() for s in text_sep]
+	text_sep = text.split(".")
+	text_sep = [s.strip() for s in text_sep if len(s)>=3]
 	text_new = ". ".join(text_sep)
 
 
@@ -305,8 +344,16 @@ def test_old():
 
 
 def test_substi():
-	_dir= '/Users/liujingyun/Desktop/NLP/nyt_corpus/data/2007summary/'
-	substi_all(_dir)
+	# _dir = "/home/ml/jliu164/corpus/nyt_corpus/summary/2007summary/"
+	# substi_all(_dir)
+
+	pool = ThreadPool(6)
+	root_dir = '/home/ml/jliu164/corpus/nyt_corpus/summary/'
+	dirs = [root_dir+str(i)+"summary/" for i in range(2002,2007)]
+	results = pool.map(substi_all, dirs)
+	pool.close()
+	pool.join()
+
 
 
 if __name__ == '__main__':
