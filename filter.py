@@ -166,17 +166,18 @@ def find_summary(yr):
 	print("There are %s summaries" %(len(out)))
 	pickle.dump(out, open("filter_results/"+str(yr)+"tmp.pkl",'wb'))
 
-	# output = extract_topics(yr, out)
-	# pickle.dump(output, open("filter_results/"+str(yr)+"_filter_result.pkl",'wb'))
-	return output
+	output = extract_topics(yr, out)
+	pickle.dump(output, open("filter_results/"+str(yr)+"_filter_result.pkl",'wb'))
+	# return output
 
 def extract_topics(yr,file_id ) :
 	"""
 	Given a year and a list of files, find the corresponding topics (indexing service). 
 	return: a list of topic tags at least as long as file_id
 	"""
-	file_path = root_dir+"data/"+str(yr)+"/"
-	out = []
+	# file_path = root_dir+"data/"+str(yr)+"/"
+	file_path = "/home/rldata/jingyun/nyt_corpus/data/"+str(yr)+"/"
+        out = []
 	with open(file_path+"file_to_topics.json") as json_data:
 		d = json.load(json_data)
 		for f in file_id:
@@ -222,11 +223,16 @@ def file_to_topic(root_path):
 	print(">>Done for "+root_path)
 
 def plot_hist(low,high):
-	need_process = []
+	"""
+	Plot the histogram for summary length by each year and total
+	"""
 	results = []
 	fig = plt.figure(figsize=(16, 7))
 	plt.rc('axes', labelsize=6)    # fontsize of the x and y labels
 	for i in range(low,high):
+
+		threas = 120
+
 		try:
 			results_tmp = pickle.load(open("filter_results/"+str(i)+"_filter_result.pkl"))
 			if results_tmp == []:
@@ -234,51 +240,56 @@ def plot_hist(low,high):
 				continue
 			
 			local_dict = dict(Counter(results_tmp))
+			# print(local_dict)
+
 			plt.subplot(4,4,i-low+1)
-			centers = range(len(local_dict))
-			plt.bar(centers, local_dict.values(),align='center', color = 'g')
-			# plt.xlabel('Topics', fontsize =8)
-			# plt.ylabel('# summaries', fontsize = 8)
 			plt.title('Year '+str(i), fontsize = 8)
 			
-			label_key, label_range = filter_dict(local_dict,1)
-			plt.xticks(label_range, label_key.keys(),fontsize = 6,rotation = 'vertical')
+			label_key, label_range = filter_dict(local_dict,threashold = threas)
+			centers = range(len(label_key))
+			plt.bar(centers, label_key.values(),align='center', color = 'g')
+			# plt.xticks(label_range, label_key.keys(),fontsize = 6,rotation = 'vertical')
+
+			print("In year %s, with threashold %s summaries, there are %s topics" %(i,threas, len(label_key)))
 
 			results.extend(results_tmp)
 		except IOError:
-			need_process.append(i)
 			print("Haven't processed "+str(i)+"yet!")
+			pass
 	else:
-		plt.subplots_adjust(left=0.03, right=0.98, top=0.95, bottom=0.03, hspace = 0.9,wspace = 0.05)
-		plt.show()
-		# plt.savefig("details.png")
-
-		# print("Making image...")
-		dicts = dict(Counter(results))
-		centers = range(len(dicts))
+		plt.subplots_adjust(left=0.05, right=0.98, top=0.95, bottom=0.03, hspace = 0.9,wspace = 0.05)
+		# plt.show()
+		plt.savefig("details.png")
 
 		fig = plt.figure(figsize=(16, 7))
-		plt.bar(centers, dicts.values(),align='center', color = 'g')
 		plt.xlabel('Topics')
 		plt.ylabel('# summaries (with >=3 sentences)')
 		plt.title('Total Topics vs. summaries available')
 
-		# figure = plt.gcf() # get current figure
-		# figure.set_size_inches(len(dicts)*3, 3*int(0.75*len(dicts)))
-		label_key, label_range = filter_dict(dicts,1)
-		print(label_key)
-		plt.xticks(label_range, label_key.keys(),rotation = 'vertical', fontsize = 6)
-		plt.subplots_adjust(left=0.02, right=0.99, top=0.95, bottom=0.25)
-		# plt.savefig("total.png")
-		plt.show()
+		dicts = dict(Counter(results))
+		threas = 300
+
+		label_key, label_range = filter_dict(dicts,threashold = threas)
+		print("With threashold %s summaries, There are in total %s topics: "%(threas, len(label_key)))
+		centers = range(len(label_key))
+		plt.bar(centers, label_key.values(),align='center', color = 'g')
+		
+		# print part of the filtered dictionary and sample some summaries
+		# print(label_key.items()[:10])
+		print(sample_summary(label_key.keys()[:3]))
+
+		# plt.xticks(label_range, range(len(label_key.keys())),rotation = 'vertical', fontsize = 6)
+		plt.subplots_adjust(left=0.05, right=0.99, top=0.95, bottom=0.25)
+		plt.savefig("total.png")
+		# plt.show()
 
 		
-def filter_dict(input_dict, threashold = 1):
+def filter_dict(input_dict, threashold = 10):
 	"""
-	Given a dictionary, filter out the (k:v) pairs where v<=1. 
+	Given a dictionary, filter out the (k:v) pairs where v<=threashold. 
 	Return [0] dictionary pairs, [1] the indices of them
 	"""
-	out_0 = {k: v for k, v in input_dict.iteritems() if v>1}
+	out_0 = {k: v for k, v in input_dict.iteritems() if v > threashold}
 	out_1 = []
 	input_items = input_dict.items()
 	for i in range(len(input_items)):
@@ -286,6 +297,36 @@ def filter_dict(input_dict, threashold = 1):
 			out_1.append(i)
 
 	return out_0, out_1
+
+def sample_summary(topics, sample_num = 10):
+	"""
+	Given a list of topics, sample summaries for each topic
+	"""
+	samples_all = []
+	for topic in topics:
+		print("Sampling from topic %s...."%(topic))
+		samples = []
+
+		for yr in range(1996,2008):
+			
+			try:
+				ids = sum_topic(yr, topic)
+				indices = np.random.choice(len(ids),size =10 if len(ids)>10 else len(ids),replace = False)
+				sample_id = [ids[i] for i in indices]
+			except KeyError:
+				print(" %s not available in year %s... go to next year" %(topic, yr))
+				continue
+			else:
+				if len(samples) == sample_num:
+					break
+				else:
+					summary = [load_sum(yr, i) for i in sample_id]
+					# print(summary)
+					samples.extend(summary)
+
+		samples_all.append(samples)
+	return samples_all
+
 
 def sum_topic( yr, topic = None):
 	"""
@@ -306,18 +347,19 @@ def sum_topic( yr, topic = None):
 		np.random.shuffle(a)
 		a = a[:10]
 		ids = [d[_topic][i] for i in a.tolist()]
- 		summaries = [load_sum(yr, i) for i in ids if 0 < get_length(yr, i) < 3]
-		return summaries
+		return ids
 
 
 def load_sum(yr, sum_id):
-	file_path = root_dir+"summary/"+str(yr)+"summary/"+sum_id+".txt"
+	file_path = root_dir+"summary/"+str(yr)+"summary/"+str(sum_id)+".txt"
 	try:
 		with open(file_path) as f:
 			out = f.read()
 			return out
-	except:
+	except IOError:
+		print("Path: "+file_path)
 		print("year %s, file id %s not available!" %(yr, sum_id))
+
 
 def get_length(yr, file_id):
 	file_path = sum_dir+str(yr)+"summary_annotated/"+str(file_id)+".txt.xml"
@@ -328,7 +370,7 @@ def get_length(yr, file_id):
 		return -1
 	else:
 		annotated_text = A(xml_doc)
-		# print(file_id)
+		
 		return len(annotated_text.sentences)
 
 #################################################################################################
@@ -354,10 +396,11 @@ def test_chart():
 
 
 if __name__ == '__main__':
-	# pool = ThreadPool(6)
-	# results = pool.map(find_summary, range(1997,2004))
+	# pool = ThreadPool(2)
+	# results = pool.map(find_summary, range(2004,2007))
 	# pool.close()
 	# pool.join()
+
 
 	# in_dir = ["/home/ml/jliu164/corpus/nyt_corpus/data/"+str(i)+"/" for i in range(2003,2008)]
 	# pool = ThreadPool(4)
@@ -367,11 +410,12 @@ if __name__ == '__main__':
   #	file_to_topic("/home/ml/jliu164/corpus/nyt_corpus/data/1999/02")
 
 	# plot_hist(1996,2008)
+	print(sample_summary(["Politics and Government"])[0])
 
 	# topic = 'Copyrights'
 	# print('\n')
-	sums = sum_topic(2000, "Summer Games")
-	pp = pprint.PrettyPrinter(indent=4)
-	pp.pprint(sums)
+	# sums = sum_topic(2004)
+	# pp = pprint.PrettyPrinter(indent=4)
+	# pp.pprint(sums)
 
 	
