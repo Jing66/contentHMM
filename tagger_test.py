@@ -15,13 +15,14 @@ from content_hmm import *
 from multiprocessing.dummy import Pool as ThreadPool
 
 input_dir = '/home/ml/jliu164/code/contentHMM_input/contents/'
-tagger_dir = '/home/ml/jliu164/code/contentHMM_tagger/contents2/'
+tagger_dir = '/home/ml/jliu164/code/contentHMM_tagger/contents/'
 
 choice = 'content_annotated/'
-root_dir = "/home/ml/jliu164/corpus/nyt_corpus/" + choice
+root_dir = "/home/rldata/jingyun/nyt_corpus/" + choice
 para_path = tagger_dir+'hyper-para.txt'
 image_dir = '/home/ml/jliu164/code/contentHMM_tagger/Transition Image/contents2/'
 fail_path = '/home/ml/jliu164/code/contentHMM_input/fail/'
+filter_result_path = 'filter_results/'
 
 
 ########################################################################################################
@@ -71,7 +72,7 @@ def numfy(word):
 
 
 def group_files(start,end, low, high):
-    # return (topic, files) pairs
+    # return (topic, files_path) pairs
     in_dir = '/home/ml/jliu164/corpus/nyt_corpus/data/'
     dicts = {}
     for i in range(start,end):
@@ -95,14 +96,28 @@ def group_files(start,end, low, high):
     return dicts
 
 
-def save_input(start,end,low,high):
+def save_input(start = 2000,end = 2001,low = 400,high = 600, dicts = None, content = True):
     """
-    from year start to end, get all the documents and vocabularies stored by topic.
+    from year start to end, get all the documents and vocabularies stored by topic. dicts: {topic: [file_id_path]}. content: save contents (true) or summary
     every file is [[[words]sentence]docs]
-    /home/ml/code/contentHMM_input
+    save dir: /home/ml/code/contentHMM_input/contents
+    NOTE: clear fail and saving directory before processing new dataset
     """
-    files = group_files(start,end,low,high)
+    if not dicts:
+        files = group_files(start,end,low,high)
+    else:
+        files = dicts
     print({k:len(v) for k,v in files.items()})
+
+    # save which input
+    if content:
+        for k,v in files.items():
+            files[k] = [re.sub("summary","content",i) for i in v]
+    else:
+        for k,v in files.items():
+            files[k] = [re.sub("content","summary",i) for i in v]
+
+    # process each topic
     for topic in files.keys():
 
         failed = set()
@@ -110,7 +125,7 @@ def save_input(start,end,low,high):
             with open(fail_path+topic+"_Failed.txt") as f:
                 failed = set(f.readlines())
         except Exception as e:
-            log_exception(e)
+            print("No fail record for topic "+topic)
             pass
         print("\n=====================================================")
         print(" Processing topic: "+topic)
@@ -132,7 +147,8 @@ def save_input(start,end,low,high):
             docs= []
             vocabs= set()
             for f in data_set[i]:
-                path = root_dir + f + ".txt.xml"
+                path = root_dir + f
+
                 if path in failed:
                     continue
 
@@ -144,6 +160,7 @@ def save_input(start,end,low,high):
             pickle.dump((docs,vocabs),output)
             print(" All {} articles saved! " .format(len(docs)))
             output.close()
+
 
 ########################################################################################################
 #########################################   Model Training  ############################################
@@ -425,6 +442,7 @@ def extract_summary(tagger, article_sent, l, summary_train , article_train):
     return summary
 
 
+
 #################################################################################################
 #########################################   Testing    ##########################################
 #################################################################################################
@@ -530,6 +548,7 @@ def test_hyper_train():
     pickle.dump(new_tagger, open("Olympic Games.pkl",'wb'))
 
 
+
 if __name__ == '__main__':    
     setup_logging_to_file("main.log")
 
@@ -539,7 +558,7 @@ if __name__ == '__main__':
 
     # train_all()
 
-    permutation_test(25,10)
+    # permutation_test(25,10)
 
     # print_all('/home/ml/jliu164/code/contentHMM_tagger/contents/')
 
@@ -549,6 +568,14 @@ if __name__ == '__main__':
     # c,f = tagger.viterbi(docs[3],flat = True)
     # print(dict(Counter(f)))
 
-    # save_input(2000,2001,400,600)
+    topics_to_train = set(["Assualts", "Suicides and Suicide Attempts", "Police Brutality and Misconduct", 
+        "Sex Crimes", "Drug Abuse and Traffic", "Murders and Attempted Murders", "Hijacking", 
+        "Assassinations and Attempted Assassinations", 
+     "War Crimes and Criminals", "Independence Movements and Secession"])
+
+    dicts = pickle.load(open(filter_result_path+"TOTAL.pkl"))
+    dicts_to_train = {k:v for k,v in dicts.items() if k in topics_to_train}
+
+    save_input(dicts = dicts_to_train)
 
     
