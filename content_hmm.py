@@ -297,26 +297,27 @@ class ContentTagger():
 
 
     ######################################### Print Information ########################################
-    def print_info(self, n_state = 5, n_emis = 15):
-        print(">> Total cluster #:"+str(self._m))
-        print(">> Vocabulary size: "+str(self._V))
+    def info(self, n_state = 5, n_emis = 15):
+        out = ""
+        out+="\n>> Total cluster #:"+str(self._m)
+        out+="\n>> Vocabulary size: "+str(self._V)
         # Prior info print
-        print("\n>> Top 5 probable prior clusters and prob:")
+        out+="\n\n>> Top 5 probable prior clusters and prob:"
         top = heapq.nlargest(n_state, range(self._m), self._priors.take)
         for t,p in zip(top, np.exp(self._priors[top]).tolist()):
-            print("P(s_%s) = %s" %(t,str(p)))
+           out+="\nP(s_%s) = %s" %(t,str(p))
 
         # Transition info print
-        print("\n>> Top 5 Most probable Transition for all clusters:")
+        out+="\n\n>> Top 5 Most probable Transition for all clusters:"
         for i in range(self._m):
             top3 = heapq.nlargest(n_state, range(self._m), self._trans[i,:].take)
   
-            print("Topic "+str(i)+": top 5 transtions are topics "+str(top3))
+            out+="\nTopic "+str(i)+": top 5 transtions are topics "+str(top3)
             for j in top3:
-                print("P(s_%s|s_%s) = %s" %(j,i,np.exp(self._trans[i,j])))
+                out+="\nP(s_%s|s_%s) = %s" %(j,i,np.exp(self._trans[i,j]))
 
         # Emission info print
-        print("\n\n>> Top 15 Bigram Emission for every cluster/topic (etcetera excluded) ranking from highest to lowest:")
+        out+="\n\n>> Top 15 Bigram Emission for every cluster/topic (etcetera excluded) ranking from highest to lowest:"
         # max_emis = [si.tocsr().toarray().argmax() for si in self._emis]
         # max_index = [divmod(i,self._V+3) for i in max_emis] # [k]=(i,j): most probable bigram is index i,j for cluster k
         # max_words = [(self._map.keys()[self._map.values().index(i)],self._map.keys()[self._map.values().index(j)]) for i,j in max_index]
@@ -330,25 +331,27 @@ class ContentTagger():
             words.reverse()
             counts = [emis[x][y] for x,y in zip(X,Y)]
             counts.reverse()
-            print("\n>> Topic "+str(i)+" emission and counts: ")
+            out+="\n\n>> Topic "+str(i)+" emission and counts: "
             for w,c in zip(words,counts):
-                print("Bigram emission %s, counts = %s" %(w,str(c)))
+                out+="\nBigram emission %s, counts = %s" %(w,str(c))
 
             uni = np.sum(emis, axis =1)
             top = heapq.nlargest(10, range(len(uni)), uni.take)
             words_uni = [self._map.keys()[self._map.values().index(x)] for x in top]
             counts_uni = [uni[i] for i in top]
             for w,c in zip(words_uni,counts_uni):
-                print("Unigram emission: '%s'. Counts = %s" %(w,str(c)))
+                out+="\nUnigram emission: '%s'. Counts = %s" %(w,str(c))
             
             end_emis = emis[:,1]
             if not np.all(end_emis):
                 end_top = heapq.nlargest(n_state, range(len(end_emis)), end_emis.take)
                 end_words = [self._map.keys()[self._map.values().index(x)] for x in end_top]
                 end_counts = [end_emis[i] for i in end_top]
-                print("Top 5 words followed by END_SENT: ")
-                print(end_words)
-                print("counts = "+str(end_counts))
+                out+="\nTop 5 words followed by END_SENT: "
+                out+=str(end_words)
+                out+="counts = "+str(end_counts)
+
+        return out
         
 
 
