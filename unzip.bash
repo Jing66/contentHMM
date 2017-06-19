@@ -12,4 +12,4 @@ exit 0
 scp 1988/12.tgz jliu164@dp-gpu1.cs.mcgill.ca:~/corpus/nyt_corpus/data/1988
 
 rename 's/txt\.xml/txt/g' *
-ls ../../summary_annotated/1996summary_annotated/ | xargs mv -t ../1996summary_finished 
+ls ../../content_annotated/2001content_annotated/ | xargs mv -t ../2001content_finished 

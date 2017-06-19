@@ -15,10 +15,11 @@ from content_hmm import *
 from multiprocessing.dummy import Pool as ThreadPool
 
 input_dir = '/home/ml/jliu164/code/contentHMM_input/contents/'
+extract_dir = input_dir+"extract/"
 tagger_dir = '/home/ml/jliu164/code/contentHMM_tagger/contents/'
 
-choice = 'content_annotated/'
-root_dir = "/home/rldata/jingyun/nyt_corpus/" + choice
+choice = 'summary_annotated/'
+root_dir = "/home/ml/jliu164/corpus/nyt_corpus/" + choice
 para_path = tagger_dir+'hyper-para.txt'
 image_dir = '/home/ml/jliu164/code/contentHMM_tagger/Transition Image/contents2/'
 fail_path = '/home/ml/jliu164/code/contentHMM_input/fail/'
@@ -37,17 +38,10 @@ def preprocess(file_path,fail_topic):
     return [0]: a document, in the form of a list of sentences
             [1]: a set of all vocabulary
     """
-    from corenlpy import AnnotatedText as A
-
     docs = []
     vocab = set()
-    try:
-        xml = open(file_path).read()
-    except:
-        print("Cannot Open File "+file_path)
-        with open(fail_path+fail_topic+"_Failed.txt",'a') as f:
-            f.write(file_path+"\n")
-        return docs,vocab
+    from corenlpy import AnnotatedText as A
+    xml = open(file_path).read()
     annotated_text = A(xml)
     for sentence in annotated_text.sentences:
         tokens = sentence['tokens']
@@ -96,7 +90,7 @@ def group_files(start,end, low, high):
     return dicts
 
 
-def save_input(start = 2000,end = 2001,low = 400,high = 600, dicts = None, content = True):
+def save_input(start = 2000,end = 2001,low = 400,high = 600, dicts = None, content = True, extract = False):
     """
     from year start to end, get all the documents and vocabularies stored by topic. dicts: {topic: [file_id_path]}. content: save contents (true) or summary
     every file is [[[words]sentence]docs]
@@ -109,11 +103,14 @@ def save_input(start = 2000,end = 2001,low = 400,high = 600, dicts = None, conte
         files = dicts
     print({k:len(v) for k,v in files.items()})
 
+
     # save which input
     if content:
+        root_dir = "/home/rldata/jingyun/nyt_corpus/content_annotated/"
         for k,v in files.items():
             files[k] = [re.sub("summary","content",i) for i in v]
     else:
+        root_dir = "/home/ml/jliu164/corpus/nyt_corpus/summary_annotated/"
         for k,v in files.items():
             files[k] = [re.sub("content","summary",i) for i in v]
 
@@ -123,8 +120,11 @@ def save_input(start = 2000,end = 2001,low = 400,high = 600, dicts = None, conte
         failed = set()
         try:
             with open(fail_path+topic+"_Failed.txt") as f:
-                failed = set(f.readlines())
-        except Exception as e:
+                paths = f.readlines()
+                failed_l = [p.split("/")[-1].split(".")[0] for p in paths]
+                failed = set(failed_l)
+                # print(failed)
+        except IOError:
             print("No fail record for topic "+topic)
             pass
         print("\n=====================================================")
@@ -134,7 +134,7 @@ def save_input(start = 2000,end = 2001,low = 400,high = 600, dicts = None, conte
         # skip existing folders
         if not os.path.exists(subdir):
             os.makedirs(subdir)
-        else:
+        elif os.path.exists(subdir) and not extract:
             continue
 
         file_path = files[topic]
@@ -142,24 +142,57 @@ def save_input(start = 2000,end = 2001,low = 400,high = 600, dicts = None, conte
         # [0]: dev set;[ 1]:train set; [2]: test set
         data_set = file_path[:M],file_path[M:-M],file_path[-M:]
         
-        for i in range(3):
-            print(" Saving data set "+str(i))
+        if not extract:
+            docs = []
+            vocabs = set()
+            # save dataset for training and developing
+            for i in range(2):
+                print(" Saving data set "+str(i))
+                for f in data_set[i]:
+                    path = root_dir + f
+
+                    if path.split("/")[-1].split(".")[0] in failed:
+                        continue
+
+                    try:
+                        doc,vocab = preprocess(path, topic)
+                    except IOError:
+                        print("Cannot Open File "+file_path)
+                        with open(fail_path+fail_topic+"_Failed.txt",'a') as f:
+                            f.write(file_path+"\n")
+                    else:
+                        docs.append(doc)
+                        vocabs = vocabs.union(vocab)
+                output = open(subdir+topic+str(i)+'.pkl','wb')
+                pickle.dump((docs,vocabs),output)
+                print(" All {} articles saved! " .format(len(docs)))
+                output.close()
+        else:
+            # make directory
+            if not os.path.exists(extract_dir):
+                os.makedirs(extract_dir)
+
+            docs = []
+            vocabs = set()
+            # save dataset for testing
+            print(" Saving testing data set")
             docs= []
             vocabs= set()
-            for f in data_set[i]:
-                path = root_dir + f
-
-                if path in failed:
+            for f in data_set[2]:
+                path = root_dir+f
+                if path.split("/")[-1].split(".")[0] in failed:
                     continue
-
+               
                 doc,vocab = preprocess(path, topic)
-                if doc!=[]:
-                    docs.append(doc)
+                docs.append(doc)
                 vocabs = vocabs.union(vocab)
-            output = open(subdir+topic+str(i)+'.pkl','wb')
+
+            output = open(extract_dir+topic+str(i)+'.pkl','wb')
             pickle.dump((docs,vocabs),output)
             print(" All {} articles saved! " .format(len(docs)))
             output.close()
+
+
 
 
 ########################################################################################################
@@ -228,8 +261,7 @@ def train_all():
         os.makedirs(tagger_dir)
 
     # inputs = os.listdir(input_dir)
-    inputs = ['Freedom and Human Rights']
-    
+    inputs = ["Hijacking"]
     # get all topics data input
     for topic in inputs:
         start_time = time.time()
@@ -248,6 +280,7 @@ def train_all():
         try:
             dev_docs, _ = pickle.load(open(dev_path))
             docs_train, vocab_train = pickle.load(open(train_path))
+            print("%s articles available for training " %(len(docs_train)))
         except:
             print("   Training or development data not available!")
             continue
@@ -257,7 +290,7 @@ def train_all():
             trainer = pickle.load(open("contentHMM_tagger/topic_init/"+topic+"_trainer_init.pkl"))
             print(" Initialized trainer available yay!")
         except:
-            print(" No available Initialized trainer...")
+            print("No available Initialized trainer...")
             pass
 
         try:
@@ -422,6 +455,7 @@ def extract_summary(tagger, article_sent, l, summary_train , article_train):
     """
     if (len(summary_train) != len(article_train)):
         print(" Number of summaries have to match number of documents!")
+        print("There are %s articles but there are %s summaries! " %(len(article_train),len(summary_train)))
 
     state_prob = extract_summary_train(tagger, summary_train, article_train)
     print(state_prob)
@@ -491,7 +525,7 @@ def test_permutation():
 
 def test_extract_summary(topic):
     docs,_ = pickle.load(open("contentHMM_input/contents/"+topic+"/"+topic+"2.pkl"))
-    tagger = pickle.load(open('contentHMM_tagger/contents_2/'+topic+".pkl"))
+    tagger = pickle.load(open('contentHMM_tagger/contents/'+topic+".pkl"))
     summaries_train, _ = pickle.load(open("contentHMM_input/summaries/"+topic+"/"+topic+"1.pkl"))
     contents_train, _ = pickle.load(open("contentHMM_input/contents/"+topic+"/"+topic+"1.pkl"))
     valid, _ = pickle.load(open("contentHMM_input/summaries/"+topic+"/"+topic+"2.pkl"))
@@ -549,10 +583,46 @@ def test_hyper_train():
 
 
 
+
+
+def summarize_topics(topics_to_train):
+    """
+    Given a list of topics, find all files of this topic and return a dictionary
+    return: (topic,[2000content_annotated/XXXXXX.txt.xml])
+    """
+    # dicts = pickle.load(open(filter_result_path+"TOTAL.pkl"))
+    # dicts_to_train = {k:v for k,v in dicts.items() if k in topics_to_train}
+    save_path = "topics_all.pkl"
+    try:
+        print("Summary already available!")
+        dicts_to_train_all = pickle.load(open(save_path))
+        dicts_to_train = {k:v for k,v in dicts_to_train_all.items() if k in dicts_to_train_all.keys()}
+        return dicts_to_train
+    except IOError:
+        print("Summary of target topics not available!")
+        
+        dicts_to_train = {}
+        for i in range(1996,2008):
+            d = json.load(open("/home/rldata/jingyun/nyt_corpus/data/"+str(i)+"/topics_indexing_services.json"))
+            for topic in topics_to_train:
+                if not d.get(topic):
+                    print("%s not available in year %s" %(topic,i))
+                    continue
+                tmp = [str(i)+"content_annotated/"+v+".txt.xml" for v in d[topic]]
+                if not dicts_to_train.get(topic):
+                    dicts_to_train[topic] = tmp
+                else:
+                    dicts_to_train[topic].extend(tmp)
+
+        # print(dicts_to_train.items()[0])
+        pickle.dump(dicts_to_train,open(save_path,"wb"))
+        return dicts_to_train
+
+
 if __name__ == '__main__':    
     setup_logging_to_file("main.log")
 
-    # test_extract_summary("Awards, Decorations and Honors")
+    # test_extract_summary("Independence Movements and Secession")
     # test_permutation()
     # test_hyper_train()
 
@@ -568,14 +638,15 @@ if __name__ == '__main__':
     # c,f = tagger.viterbi(docs[3],flat = True)
     # print(dict(Counter(f)))
 
-    topics_to_train = set(["Assualts", "Suicides and Suicide Attempts", "Police Brutality and Misconduct", 
-        "Sex Crimes", "Drug Abuse and Traffic", "Murders and Attempted Murders", "Hijacking", 
-        "Assassinations and Attempted Assassinations", 
-     "War Crimes and Criminals", "Independence Movements and Secession"])
+    # topics_to_train = set(["Assualts", "Suicides and Suicide Attempts", "Police Brutality and Misconduct", 
+    #     "Sex Crimes", "Drug Abuse and Traffic", "Murders and Attempted Murders", "Hijacking", 
+    #     "Assassinations and Attempted Assassinations", 
+    #     "War Crimes and Criminals", "Independence Movements and Secession"])
+    
+    topics_to_train = set(["Suicides and Suicide Attempts","Hijacking","Assassinations and Attempted Assassinations", "Independence Movements and Secession"])
 
-    dicts = pickle.load(open(filter_result_path+"TOTAL.pkl"))
-    dicts_to_train = {k:v for k,v in dicts.items() if k in topics_to_train}
+    dicts_to_train = summarize_topics(topics_to_train)
 
-    save_input(dicts = dicts_to_train)
+    save_input(dicts = dicts_to_train, extract = True)
 
     
