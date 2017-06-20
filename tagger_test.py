@@ -17,6 +17,8 @@ from multiprocessing.dummy import Pool as ThreadPool
 input_dir = '/home/ml/jliu164/code/contentHMM_input/contents/'
 extract_dir = input_dir+"extract/"
 tagger_dir = '/home/ml/jliu164/code/contentHMM_tagger/contents/'
+root_dir = "/home/rldata/jingyun/nyt_corpus/"
+choice = "content_annotated"
 
 para_path = tagger_dir+'hyper-para.txt'
 image_dir = '/home/ml/jliu164/code/contentHMM_tagger/Transition Image/contents/'
@@ -28,7 +30,7 @@ filter_result_path = 'filter_results/'
 ######################################### Group Input Test  ############################################
 ########################################################################################################
 
-def preprocess(file_path,fail_topic):
+def preprocess(file_path,fail_topic, for_extract = False):
     """
     insert **START_DOC** before the start of each article; **START/END_SENT** before the start/end of each sentence;
     remove punctuation; replace numbers with 5, #digits are the same
@@ -38,13 +40,20 @@ def preprocess(file_path,fail_topic):
     """
     docs = []
     vocab = set()
+    origin = []
     from corenlpy import AnnotatedText as A
     xml = open(file_path).read()
     annotated_text = A(xml)
     for sentence in annotated_text.sentences:
         tokens = sentence['tokens']
+        # get original text
+        if for_extract:
+            out = ""
+            for token in tokens:
+                out += token['word'] + " "
+            origin.append(out)
+
         tokens = [numfy(i['lemma']) for i in tokens if i['word'].isalpha() and i['lemma'].isalpha() and not i['lemma'].lower() in STOPWORDS]
-       
         vocab = vocab.union(set(tokens))
         tokens.insert(0,START_SENT)
         tokens.append(END_SENT) 
@@ -52,8 +61,11 @@ def preprocess(file_path,fail_topic):
 
     if len(docs)>0:    
         docs[0] = [START_DOC]+docs[0]   #['**START_DOC**', '**START_SENT**', u'the', u'head', u'of', u'the', u'united', u'nations', u'election', u'agency', u'say', u'sunday', u'that', u'she', u'would', u'resist', u'a', u'report', u'action', u'to', u'oust', u'she', u'from', u'she', u'position', u',', u'a', u'move', u'that', u'would', u'come', u'a', u'week', u'before', u'crucial', u'election', u'she', u'office', u'be', u'oversee', u'in', u'iraq.secretary', u'general', u'kofi', u'annan', u'plan', u'to', u'deliver', u'a', u'dismissal', u'letter', u'to', u'carina', u'perelli', u',', u'head', u'of', u'the', u'united', u'nations', u"'", u'electoral', u'assistance', u'division', u',', u'the', u'associated', u'press', u'report', u'and', u'two', u'united', u'nations', u'official', u'confirm', u'.', '**END_SENT**']]
-
-    return docs, vocab
+    
+    if not for_extract:
+        return docs, vocab
+    else:
+        return docs, origin
 
 
 def numfy(word):
@@ -90,9 +102,10 @@ def group_files(start,end, low, high):
 
 def save_input(start = 2000,end = 2001,low = 400,high = 600, dicts = None, content = True, redo = False):
     """
-    from year start to end, get all the documents and vocabularies stored by topic. dicts: {topic: [file_id_path]}. content: save contents (true) or summary
+    from year start to end, get all the documents and vocabularies stored by topic. dicts: {topic: [file_id_path]}. 
     every file is [[[words]sentence]docs]
-    save dir: /home/ml/code/contentHMM_input/contents
+    para: content: True if saving content, false is saving summary; redo: True if processing the second time, false if processing the first time
+    save dir: /home/ml/code/contentHMM_input/
     NOTE: clear fail and saving directory before processing new dataset
     """
     if not dicts:
@@ -104,7 +117,7 @@ def save_input(start = 2000,end = 2001,low = 400,high = 600, dicts = None, conte
     # save which input
     if content:
         root_dir = "/home/rldata/jingyun/nyt_corpus/content_annotated/"
-        input_dir ='/home/ml/jliu164/code/contentHMM_input/contents/'
+        input_dir ='/home/ml/jliu164/code/contentHMM_input/contents2/'
         for k,v in files.items():
             files[k] = [re.sub("summary","content",i) for i in v]
     else:
@@ -129,6 +142,7 @@ def save_input(start = 2000,end = 2001,low = 400,high = 600, dicts = None, conte
         print(" Processing topic: "+topic)
         print("=====================================================")
         subdir = input_dir +topic+'/'
+        print("Processing directory: "+root_dir)
         print("Saving directory: "+subdir)
 
         # skip existing folders if for the first time
@@ -138,34 +152,52 @@ def save_input(start = 2000,end = 2001,low = 400,high = 600, dicts = None, conte
             continue
 
         file_path = files[topic]
-        M = int(0.1*len(file_path) - len(failed))
-        # M = int(0.1*len(file_path))
+        M = len(file_path) - len(failed)
+        print("Will process in total %s files "%(M))
 
         # [0]: dev set;[ 1]:train set; [2]: test set
-        data_set = file_path[:M],file_path[M:-M],file_path[-M:]
+        # data_set = file_path[:M],file_path[M:-M],file_path[-M:]
         
-        docs = []
-        vocabs = set()
-        # save dataset for training and developing
+        # save dataset
         for i in range(3):
+            docs = []
+            vocabs = set()
+            origins = []
             print(" Saving data set "+str(i))
-            for f in data_set[i]:
+            for f in file_path:
                 path = root_dir + f
 
                 if path.split("/")[-1].split(".")[0] in failed:
                     continue
 
                 try:
-                    doc,vocab = preprocess(path, topic)
+                    if i==2:
+                        doc, origin = preprocess(path,topic,for_extract = True)
+                    else:
+                        doc,vocab = preprocess(path, topic)
                 except IOError:
                     print("Cannot Open File "+file_path)
                     with open(fail_path+fail_topic+"_Failed.txt",'a') as f:
                         f.write(file_path+"\n")
                 else:
                     docs.append(doc)
-                    vocabs = vocabs.union(vocab)
+                    if i==2:
+                        # print(origin)
+                        origins.append(origin)
+                    else:
+                        vocabs = vocabs.union(vocab)
+                # save dev/train/test data set
+                if (i==0 or i==2) and len(docs) == np.round(0.1*M):
+                    print(len(docs))
+                    break
+                elif i==1 and len(docs) == np.round(0.8*M):
+                    break
+
             output = open(subdir+topic+str(i)+'.pkl','wb')
-            pickle.dump((docs,vocabs),output)
+            if i==2:
+                pickle.dump((docs,origins),output)
+            else:
+                pickle.dump((docs,vocabs),output)
             print(" All {} articles saved! " .format(len(docs)))
             output.close()
     
@@ -448,7 +480,7 @@ def extract_summary_train(tagger,summary_sent, article_sent):
     
     return state_prob
 
-def extract_summary(tagger, article_sent, l, summary_train , article_train):
+def extract_summary(tagger, article_sent, origin, l, summary_train , article_train):
     """
     Given an article(a list of article), produce length-l summary
     return: a list of sentences as summary
@@ -459,6 +491,7 @@ def extract_summary(tagger, article_sent, l, summary_train , article_train):
 
     state_prob = extract_summary_train(tagger, summary_train, article_train)
     print(state_prob)
+
     _ , flat = tagger.viterbi(article_sent, flat = True)
 
     flat = np.array(flat)
@@ -471,7 +504,7 @@ def extract_summary(tagger, article_sent, l, summary_train , article_train):
     for i in indices:
         if j > l:
             break
-        summary.append(article_sent[i])
+        summary.append(origin[i])
         j +=1
     return summary
 
@@ -536,7 +569,8 @@ def test_permutation():
 
 
 def test_extract_summary(topic):
-    docs,_ = pickle.load(open("contentHMM_input/contents/extract/"+topic+"2.pkl"))
+    docs, origin = pickle.load(open("contentHMM_input/contents2/"+topic+"/"+topic+"2.pkl"))
+
     tagger = pickle.load(open('contentHMM_tagger/contents/'+topic+".pkl"))
     summaries_train, _ = pickle.load(open("contentHMM_input/summaries/"+topic+"/"+topic+"1.pkl"))
     contents_train, _ = pickle.load(open("contentHMM_input/contents/"+topic+"/"+topic+"1.pkl"))
@@ -544,8 +578,8 @@ def test_extract_summary(topic):
     
     length = [len(docs[i]) for i in range(len(docs))]
     # print(tagger._m)
-    # print(length)
-    summary = extract_summary(tagger,docs[4],5, summary_train = summaries_train, article_train = contents_train)
+    print(length)
+    summary = extract_summary(tagger,docs[4],origin[4],5, summary_train = summaries_train, article_train = contents_train)
     
     print(sent_to_article([token_to_sent(i) for i in summary]))
 
@@ -608,7 +642,7 @@ def summarize_topics(topics_to_train):
     try:
         print("Summary already available!")
         dicts_to_train_all = pickle.load(open(save_path))
-        dicts_to_train = {k:v for k,v in dicts_to_train_all.items() if k in dicts_to_train_all.keys()}
+        dicts_to_train = {k:v for k,v in dicts_to_train_all.items() if k in topics_to_train}
         return dicts_to_train
     except IOError:
         print("Summary of target topics not available!")
@@ -634,7 +668,7 @@ def summarize_topics(topics_to_train):
 if __name__ == '__main__':    
     setup_logging_to_file("main.log")
 
-    # test_extract_summary("Suicides and Suicide Attempts")
+   # test_extract_summary("Suicides and Suicide Attempts")
     # test_permutation()
     # test_hyper_train()
 
@@ -650,15 +684,14 @@ if __name__ == '__main__':
     # c,f = tagger.viterbi(docs[3],flat = True)
     # print(dict(Counter(f)))
 
-    topics_to_train = set(["Assualts", "Suicides and Suicide Attempts", "Police Brutality and Misconduct", 
-        "Sex Crimes", "Drug Abuse and Traffic", "Murders and Attempted Murders", "Hijacking", 
-        "Assassinations and Attempted Assassinations", 
-        "War Crimes and Criminals", "Independence Movements and Secession"])
-    
-    # topics_to_train = set(["Suicides and Suicide Attempts","Hijacking","Assassinations and Attempted Assassinations", "Independence Movements and Secession"])
+    #topics_to_train = set(["Assualts", "Suicides and Suicide Attempts", "Police Brutality and Misconduct", 
+    #    "Sex Crimes", "Drug Abuse and Traffic", "Murders and Attempted Murders", "Hijacking", 
+    #    "Assassinations and Attempted Assassinations", 
+    #    "War Crimes and Criminals", "Independence Movements and Secession"])
 
+    topics_to_train = set(["Suicides and Suicide Attempts","Hijacking","Assassinations and Attempted Assassinations","Independence Movements and Secession"])
     dicts_to_train = summarize_topics(topics_to_train)
 
-    save_input(dicts = dicts_to_train, content = True, redo = False)
+    save_input(dicts = dicts_to_train, content = True, redo = True)
 
     
