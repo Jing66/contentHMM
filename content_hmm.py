@@ -1,8 +1,8 @@
-
 from nltk import bigrams
 import math
 import numpy as np
 import heapq
+import gc
 
 import scipy.cluster.hierarchy as hac
 from collections import Counter
@@ -23,13 +23,13 @@ GAMMA = 0.2
 ########################################################################################################
 ################################# Create k clusters to initialize ######################################
 ########################################################################################################
-# bigram:
-def similarity(bigrams1,bigrams2):
+# n-grams:
+def similarity(seq1,seq2):
     """
     input text bigrams as list
     """
-    numer = len(bigrams1.intersection(bigrams2))
-    denom = math.sqrt(len(bigrams1)*len(bigrams2))
+    numer = len(seq1.intersection(seq2))
+    denom = math.sqrt(len(seq1)*len(seq2))
     if not denom:
         return 0.0
     else:
@@ -48,6 +48,7 @@ def make_cluster_tree(text_seq):
     # bigr = [set(bigrams(i)) for i in dicts]
 
     uni = [set(i) for i in text_seq]
+    gc.collect()
 
     cond_arr = np.empty(int(comb(N,2)))
     cond_arr.fill(1.0)
@@ -65,10 +66,8 @@ def make_cluster_tree(text_seq):
             if uni[i].intersection(uni[j]) == set([]):
                 continue
             else:
-                numer = len(uni[i].intersection(uni[j]))
-                denom = math.sqrt(len(uni[i])*len(uni[j]))
                 index = cond_arr.size - int(comb(N-i,2)) + (j-i)-1
-                cond_arr[index] = 1 - float(numer)/denom
+                cond_arr[index] = 1 - similarity(uni[i],uni[j])
 
     Z = hac.linkage(cond_arr,method = "complete")
     return Z
@@ -402,7 +401,6 @@ class ContentTaggerTrainer():
 
             sents = self._clusters[si]
             
-            #seqs = [word_tokenize(i) for i in sents]
             bigram_seqs = [list(bigrams(j)) for j in sents]
 
             bigram_seq = [val for li in bigram_seqs for val in li if val[0]!= START_DOC]
@@ -410,8 +408,16 @@ class ContentTaggerTrainer():
             for tup in big_count_all:
                 if(tup[0] == END_SENT): 
                     continue
+                if(tup[0] == START_SENT and tup[1] == END_SENT):
+                    continue
                 cache[self._map[tup[0]],self._map[tup[1]]] += big_count_all[tup]
             emis.append(cache)
+            # sanity check
+            with open("war_record_emis.txt",'a') as f:
+                if cache[0,1]!= 0:
+                    f.write(str(cache[0,1]))
+                    f.write(str(sents))
+                f.write('\n')
         return emis
 
     ############################################ Transition Probability  ###################################
