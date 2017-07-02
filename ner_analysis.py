@@ -16,7 +16,7 @@ from nltk.corpus import stopwords
 
 STOPWORDS = set(stopwords.words('english'))
 
-from content_hmm import similarity, make_cluster_tree
+from content_hmm import similarity
 
 START = "*START*"
 END = "*END*"
@@ -206,6 +206,43 @@ def _merge_tree(idx):
 #######################################################################################################
 ############################## Create k clusters by unigram feature ###################################
 #######################################################################################################
+def make_cluster_tree(dicts):
+    """
+    para text_seq: list of sentences. each sentence is list of words
+    return linkage
+    """
+    # generate condensed distance matrix
+    #print("Clustering "+str(len(text_seq))+" sentences...")
+    text_seq_tup = dicts.values()
+    N = len(dicts)
+    
+    # uni = [set(i) for i in text_seq]
+    gc.collect()
+    cond_arr = np.empty(int(comb(N,2)))
+    cond_arr.fill(1.0)
+    for i in range(N):
+        for j in range(i+1,N):
+        	tup_i = text_seq_tup[i]
+        	tup_j =  text_seq_tup[j]
+        	key_words_i = set([tup_i[0][p] for p in tup_i[1]])
+        	key_words_j = set([tup_j[0][p] for p in tup_j[1]])
+            
+            # Unigram feature
+            # if uni[i].intersection(uni[j]) == set([]):
+            if set(tup_i[0]).intersection(tup_j[0]) == set([]):
+                continue
+            # same keywords
+            elif key_words_i <=key_words_j and key_words_j <= key_words_i:
+            	index = cond_arr.size - int(comb(N-i,2)) + (j-i)-1
+            	cond_arr[index] = 0
+            else:
+                index = cond_arr.size - int(comb(N-i,2)) + (j-i)-1
+                cond_arr[index] = 1 - similarity(uni[i],uni[j])
+
+    Z = hac.linkage(cond_arr,method = "complete")
+    return Z
+
+
 def cut_tree(dicts,seqs, linkage, k):
 	"""
 	Input: dictonary of {id:([sequence],idx)}, list of words sequence, cluster tree, hyperparameter k
@@ -303,16 +340,16 @@ def test_extractor():
 
 
 def test_cluster():
-	#dicts = pickle.load(open("NER_input/person_sample_wo_punct.pkl"))
-	dicts = pickle.load(open("NER_input/person_all.pkl"))
+	dicts = pickle.load(open("NER_input/person_sample_wo_punct.pkl"))
+	# dicts = pickle.load(open("NER_input/person_all.pkl"))
 	print(len(dicts))
-	# dicts = dict(dicts.items()[:1000000])
+	dicts = dict(dicts.items()[:1000000])
 	# print(dicts)
 	# word2id = {v[0][v[1]]:k for k,v in dicts.items()} # specific NER to its id
 	seqs = [i[0] for i in dicts.values()]
 	# print(seqs)
 	Z = make_cluster_tree(seqs)
-	pickle.dump(Z, open("NER_result/linkage/Z_person_all.pkl","wb"))
+	pickle.dump(Z, open("NER_result/linkage/Z_person_new_cluster.pkl","wb"))
 	# Z = pickle.load(open("NER_result/linkage/Z_person_all_w_punct.pkl"))
 	# clus2id, clus2seq, id2clus = cut_tree(dicts, seqs,Z,23)
 	# print(clus2id)

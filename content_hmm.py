@@ -44,9 +44,7 @@ def make_cluster_tree(text_seq):
     #print("Clustering "+str(len(text_seq))+" sentences...")
     N = len(text_seq)
     
-    # dicts = text_seq
     # bigr = [set(bigrams(i)) for i in dicts]
-
     uni = [set(i) for i in text_seq]
     gc.collect()
 
@@ -55,13 +53,6 @@ def make_cluster_tree(text_seq):
     for i in range(N):
         for j in range(i+1,N):
             
-            # Bigram feature
-            # if bigr[i].intersection(bigr[j]) == set([]):
-            #     continue
-            # else:
-            #     index = cond_arr.size - int(comb(N-i,2)) + (j-i)-1
-            #     cond_arr[index] = similarity(bigr[i],bigr[j])
-
             # Unigram feature
             if uni[i].intersection(uni[j]) == set([]):
                 continue
