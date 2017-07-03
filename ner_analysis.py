@@ -12,7 +12,9 @@ import traceback
 import logging
 import exceptions
 import re
+import gc
 from nltk.corpus import stopwords
+import pprint
 
 STOPWORDS = set(stopwords.words('english'))
 
@@ -139,9 +141,12 @@ def _extractor(sent, NER):
 				idx = _group_ner(tokens,i)
 				out_indices.append(idx)
 		indices = _merge_tree(out_indices)
-		if indices:
+		for idc in indices:
+			num_start = 4-min(idc)
+			num_end = max(idc)+5-N
+			idc_rel = [k+num_start for k in idc]
 			word_list = [t["lemma"] for t in tokens]
-			return [([START]+word_list+[END], indices)]
+			return [([START]*num_start+word_list+[END]*num_end, idc_rel)]
 		else:
 			return []	
 	for i in range(3)+range(N-4,N):
@@ -226,18 +231,14 @@ def make_cluster_tree(dicts):
         	tup_j =  text_seq_tup[j]
         	key_words_i = set([tup_i[0][p] for p in tup_i[1]])
         	key_words_j = set([tup_j[0][p] for p in tup_j[1]])
-            
-            # Unigram feature
-            # if uni[i].intersection(uni[j]) == set([]):
-            if set(tup_i[0]).intersection(tup_j[0]) == set([]):
-                continue
-            # same keywords
-            elif key_words_i <=key_words_j and key_words_j <= key_words_i:
-            	index = cond_arr.size - int(comb(N-i,2)) + (j-i)-1
-            	cond_arr[index] = 0
-            else:
-                index = cond_arr.size - int(comb(N-i,2)) + (j-i)-1
-                cond_arr[index] = 1 - similarity(uni[i],uni[j])
+        	if set(tup_i[0]).intersection(tup_j[0]) == set([]):
+        		continue
+        	elif key_words_i <=key_words_j and key_words_j <= key_words_i:
+        		index = cond_arr.size - int(comb(N-i,2)) + (j-i)-1
+        		cond_arr[index] = 0
+        	else:
+        		index = cond_arr.size - int(comb(N-i,2)) + (j-i)-1
+        		cond_arr[index] = 1 - similarity(set(tup_i[0]),set(tup_j[0]))
 
     Z = hac.linkage(cond_arr,method = "complete")
     return Z
@@ -290,16 +291,20 @@ def cluster(dicts, seqs, sample = 5, file_name = None, tree = None):
 		max_len = max(clus_length.values())
 		max_clusid = clus_length.keys()[clus_length.values().index(max_len)]
 		seq = clus2seq[max_clusid]
-		print("\n\nk = %s"%(K))
+		print("\nk = %s"%(K))
 		print("Biggest cluster is #%s"%(max_clusid))
 		idx = np.random.choice(max_len, size = 10,replace =False)
 
 		if file_name:
 			with open(file_name+str(i)+".txt",'wb') as f:
+				pp = pprint.PrettyPrinter(indent = 4, stream = f)
+				f.write("Total %s clusters. sizes:" %(K))
+				f.write(str(clus_length))
+				f.write("\n\n")
 				for k,v in clus2seq.items():
 					f.write(">> Cluster %s:\n "%(k))
 					elements = [_concat(t) for t in v]
-					f.write(str(elements))
+					pp.pprint(elements)
 					f.write("\n\n")
 
 
@@ -314,11 +319,12 @@ def _concat(wuple_w):
 
 def test_extractor():
 	# xml = open("/home/ml/jliu164/corpus/nyt_corpus/summary_annotated/2001summary_annotated/1355768.txt.xml").read()
+	# xml = open('/home/rldata/jingyun/nyt_corpus/summary_annotated/1996summary_annotated/0886987.txt.xml').read()
 	# text = A(xml)
 	# print(text)
 	# print(_group_ner(text.sentences[0]["tokens"],2))
 	# print(_merge_tree([[0],[1],[2,0,1],[3],[4],[3,4],[7,8,9],[8,9]]))
-	# print(_extractor(text.sentences[0],"ORGANIZATION"))
+	# print(_extractor(text.sentences[4],"PERSON"))
 	# exit(0) 
 
 	# files = ['2001summary_annotated/1355765.txt.xml','2001summary_annotated/1355764.txt.xml','2001summary_annotated/1355768.txt.xml']
@@ -332,38 +338,38 @@ def test_extractor():
 	
 	ners = ["PERSON","ORGANIZATION","LOCATION","TIME","DURATION","DATE","SET"]
 	fnames = ["NER_input/"+i.lower()+"_all.pkl" for i in ners]
-	gen_input(files,save_file=True,
-		NER = ners, save_file_name=fnames)
-	# gen_input(files,thread=3, save_file = True, save_file_name = ["NER_input/person_sample_wo_punct.pkl","NER_input/org_wo_punct.pkl"])
+	# gen_input(files,save_file=True,
+	# 	NER = ners, save_file_name=fnames)
+	gen_input(files,thread=5, save_file = True, save_file_name = ["NER_input/person_all-1.pkl","NER_input/org_all-1.pkl"])
 	# for f in files:
-		# print(_gen_input((files[2],["NUMBER","ORGANIZATION"])))
+	# print(_gen_input((files[13],["PERSON"])))
+
 
 
 def test_cluster():
-	dicts = pickle.load(open("NER_input/person_sample_wo_punct.pkl"))
+	dicts = pickle.load(open("NER_input/org_sample.pkl"))
 	# dicts = pickle.load(open("NER_input/person_all.pkl"))
 	print(len(dicts))
-	dicts = dict(dicts.items()[:1000000])
-	# print(dicts)
 	# word2id = {v[0][v[1]]:k for k,v in dicts.items()} # specific NER to its id
-	seqs = [i[0] for i in dicts.values()]
 	# print(seqs)
-	Z = make_cluster_tree(seqs)
-	pickle.dump(Z, open("NER_result/linkage/Z_person_new_cluster.pkl","wb"))
+	Z = make_cluster_tree(dicts)
+	pickle.dump(Z, open("NER_result/linkage/Z_org_sample.pkl","wb"))
 	# Z = pickle.load(open("NER_result/linkage/Z_person_all_w_punct.pkl"))
-	# clus2id, clus2seq, id2clus = cut_tree(dicts, seqs,Z,23)
+	seqs = [i[0] for i in dicts.values()]
+
+	# clus2id, clus2seq, id2clus = cut_tree(dicts, seqs,Z,5)
 	# print(clus2id)
 	# print(clus2seq)
-
-	cluster(dicts, seqs, tree = Z, file_name="NER_result/person_all")
+	print("Generating clusters...")
+	cluster(dicts, seqs, tree = Z, file_name="NER_result/org_sample")
 	
 
 
 if __name__ == '__main__':
-	setup_logging_to_file("loggings/ner.log")
+	setup_logging_to_file('loggings/ner_'+time.strftime("%d_%m_%Y")+"_"+time.strftime("%I:%M:%S")+".log")
 
-#	test_extractor()
-	test_cluster()
+	test_extractor()
+	# test_cluster()
 
 
 
