@@ -15,6 +15,10 @@ import re
 import gc
 from nltk.corpus import stopwords
 import pprint
+from scipy.sparse import lil_matrix
+from scipy.spatial.distance import squareform
+import os
+
 
 STOPWORDS = set(stopwords.words('english'))
 
@@ -105,20 +109,57 @@ def _gen_input((f,NER)):
 		
 		for sent in text.sentences:
 			for i in range(len(NER)):
-
-				# try:
-				repre = _extractor(sent,NER[i]) # list of words as context around the NER
-
-					# print(repre)
-				# except Exception as e:
-				# 	print("Catch exception. Logged.")
-				# 	log_exception(e)
-				# 	pass
-				# else:
+				# repre = _extractor(sent,NER[i]) # extract NER exact
+				repre = _extractor_linked(sent,NER[i]) # extracting linkage
 				if repre:
 					results[i].extend(repre)
 		
 		return results
+
+
+def _extractor_linked(sent,NER):
+	# instead of extract the head word of the NER, find its parent in the dependency tree and return that context
+	# for NER == DATE/TIME/DURATION => verb; NER = VERB => NN
+	# return ([context words],head word)
+	out = []
+	tokens = [i for i in sent['tokens'] 
+		if i['lemma'].isalpha()  or re.findall(r'^\-?[1-9][0-9]*\.?[0-9]*',i['lemma']) # and i['lemma'] not in STOPWORDS
+			or i['ner']]
+	N = len(tokens)
+
+	# VERB => NN
+	if NER == "VERB":
+		for i in range(N):
+			w = tokens[i]
+			if re.findall(r'VB',w['pos']):
+				# print("Find a VB*: %s"%(w))
+				t_root = _link_verb(w)
+				# print(t_root)
+				if not t_root:
+					continue
+				# get the context around t_root
+				idxs = [tokens.index(t) for t in t_root]
+
+				for idx in idxs:
+					if N <= 9:
+						wl = [i['lemma'] for i in tokens]
+					elif idx <4:
+						wl = [START]+[i['lemma'] for i in tokens[:idx+4]]
+						idx +=1
+					elif idx >= N-4:
+						wl = [i['lemma'] for i in tokens[idx-4:]]+[END]
+						idx = 4
+					else:
+						wl = [i['lemma'] for i in tokens[idx-4:idx+4]]
+						idx = 4
+					out.append((tuple(wl),tuple([idx])))
+	else: # TIME => VERB
+		pass
+
+	return list(set(out))
+
+
+
 		
 
 def _extractor(sent, NER):
@@ -127,13 +168,12 @@ def _extractor(sent, NER):
 	out_indices = [] # list of [index], each element is a group of NER found in sentence
 	# tokens = sent['tokens']
 	# remove punctuation, keep numbers or those has NER
-	
 	tokens = [i for i in sent['tokens'] 
-		if i['lemma'].isalpha()  or re.findall(r'^\-?[1-9][0-9]*\.?[0-9]*',i['lemma']) and i['lemma'] not in STOPWORDS
+		if i['lemma'].isalpha()  or re.findall(r'^\-?[1-9][0-9]*\.?[0-9]*',i['lemma']) # and i['lemma'] not in STOPWORDS
 			or i['ner']]
 
 	N = len(tokens)
-	# print("Sentence has length %s"%(N))
+
 	if N <= 9:
 		for i in range(N):
 			w = tokens[i]
@@ -142,38 +182,59 @@ def _extractor(sent, NER):
 				out_indices.append(idx)
 		indices = _merge_tree(out_indices)
 		for idc in indices:
-			num_start = 4-min(idc)
-			num_end = max(idc)+5-N
-			idc_rel = [k+num_start for k in idc]
+			# num_start = 4-min(idc)
+			# num_end = max(idc)+5-N
+			# idc_rel = [k+num_start for k in idc]
+			idc_rel = [k+1 for k in idc]
 			word_list = [t["lemma"] for t in tokens]
-			return [([START]*num_start+word_list+[END]*num_end, idc_rel)]
+			# return [([START]*num_start+word_list+[END]*num_end, idc_rel)]
+			return [([START]+word_list+[END], idc_rel)]
 		else:
-			return []	
-	for i in range(3)+range(N-4,N):
+			return []
+
+	for i in range(N):
+		# print("Checking %s : NER == %s"%(sent["tokens"][i]['word'],sent["tokens"][i]['ner']))
 		if tokens[i]["ner"] == NER:
 			idx = _group_ner(tokens,i)
 			out_indices.append(idx)
 
-	for i in range(4, len(tokens)-4):
-		# print("Checking %s : NER == %s"%(sent["tokens"][i]['word'],sent["tokens"][i]['ner']))
-		if tokens[i]['ner'] == NER:
-			idx = _group_ner(tokens,i)
-			out_indices.append(idx)
 	indices = _merge_tree(out_indices)
-
+	# print(indices)
 	for idc in indices:
 		if min(idc)<4:
 			wl = [t["lemma"] for t in tokens[:max(idc)+5]]
-			idc_rel = [i+4-min(idc) for i in idc]
-			out.append((([START]*(4-min(idc))+wl),idc_rel))
+			idc_rel = [i+1 for i in idc]
+			out.append(([START]+wl,idc_rel))
 		elif max(idc)>N-4:
 			wl = [t["lemma"] for t in tokens[min(idc)-4:]]
 			idc_rel = [4+i-min(idc) for i in idc]
-			out.append(((wl+[END]*(5-N+max(idc))),idc_rel))
+			out.append((wl+[END],idc_rel))
 		else:
 			idc_rel = [i - min(idc)+4 for i in idc]
 			wl = [t["lemma"] for t in tokens[min(idc)-4:max(idc)+5]]
 			out.append((wl,idc_rel))
+	return out
+
+
+def _link_verb(token):
+	# return a noun token (why not index? punctuations get kicked out) that the verb is referred to
+	children = token["children"]
+	parents = token["parents"]
+	out = []
+	# go up
+	for _,parent in parents:
+		if re.findall(r'VB',parent['pos']):
+			return _link_verb(parent)
+		if re.findall(r"NN",parent['pos']):
+			if not parent['ner'] or re.findall(r'PERSON|LOCATION|ORGANIZATION',parent['ner']):
+				return [parent]
+			else:
+				return _link_verb(parent)
+	# go down
+	for _, child in children:
+		if re.findall(r'NN',child['pos']):
+			if not child['ner'] or re.findall(r'PERSON|LOCATION|ORGANIZATION',child['ner']):
+				out.append(child)
 	return out
 
 
@@ -211,9 +272,9 @@ def _merge_tree(idx):
 #######################################################################################################
 ############################## Create k clusters by unigram feature ###################################
 #######################################################################################################
-def make_cluster_tree(dicts):
+def make_cluster_tree(dicts, force_head = True):
     """
-    para text_seq: list of sentences. each sentence is list of words
+    para text_seq: dictionary of sequences. force_head = True if force those that has same head word to have distance 0
     return linkage
     """
     # generate condensed distance matrix
@@ -223,8 +284,9 @@ def make_cluster_tree(dicts):
     
     # uni = [set(i) for i in text_seq]
     gc.collect()
-    cond_arr = np.empty(int(comb(N,2)))
-    cond_arr.fill(1.0)
+    # cond_arr = np.ones(int(comb(N,2)))
+
+    L = lil_matrix((N,N)) # L[i,j] = L[j,i] = similarity(Oi,Oj)
     for i in range(N):
         for j in range(i+1,N):
         	tup_i = text_seq_tup[i]
@@ -233,14 +295,21 @@ def make_cluster_tree(dicts):
         	key_words_j = set([tup_j[0][p] for p in tup_j[1]])
         	if set(tup_i[0]).intersection(tup_j[0]) == set([]):
         		continue
-        	elif key_words_i <=key_words_j and key_words_j <= key_words_i:
-        		index = cond_arr.size - int(comb(N-i,2)) + (j-i)-1
-        		cond_arr[index] = 0
+        	
+        	elif key_words_i <=key_words_j and key_words_j <= key_words_i and force_head:
+        		# index = cond_arr.size - int(comb(N-i,2)) + (j-i)-1
+        		# cond_arr[index] = 0
+        		L[i,j] = 1
+        		L[j,i] = 1
         	else:
-        		index = cond_arr.size - int(comb(N-i,2)) + (j-i)-1
-        		cond_arr[index] = 1 - similarity(set(tup_i[0]),set(tup_j[0]))
+        		sim = similarity(set(tup_i[0]),set(tup_j[0]))
+        		# index = cond_arr.size - int(comb(N-i,2)) + (j-i)-1
+        		# cond_arr[index] = 1 - similarity(set(tup_i[0]),set(tup_j[0]))
+        		L[i,j] = sim
+        		L[j,i] = sim
 
-    Z = hac.linkage(cond_arr,method = "complete")
+    cond_arr = squareform(L.toarray())
+    Z = hac.linkage(1-cond_arr,method = "complete")
     return Z
 
 
@@ -308,6 +377,22 @@ def cluster(dicts, seqs, sample = 5, file_name = None, tree = None):
 					f.write("\n\n")
 
 
+def _cleanup(dicts):
+	v = dicts.values()
+	# print(v[0])
+	pairs = [(tuple(a),tuple(b)) for a,b in v]
+	uniq_pairs = list(set(pairs))
+	N = len(uniq_pairs)
+	return dict(zip(range(N),uniq_pairs))
+
+
+def print_info():
+	files = os.listdir("NER_input/")
+	files = [f for f in files if f.split(".")[-1] == "pkl"]
+	for f in files:
+		dicts = pickle.load(open("NER_input/"+f))
+		print("File %s has size %s!"%(f,len(dicts)))
+
 
 
 #################################################################################################
@@ -317,14 +402,23 @@ def _concat(wuple_w):
 	return (" ").join(list(wuple_w))
 
 
+def test_clean():
+	dicts = pickle.load(open("NER_input/duration_all.pkl"))
+	print(len(dicts))
+	dicts = _cleanup(dicts)
+	print(len(dicts))
+	pickle.dump(dicts,open("NER_input/duration_all.pkl",'wb'))
+
+
 def test_extractor():
 	# xml = open("/home/ml/jliu164/corpus/nyt_corpus/summary_annotated/2001summary_annotated/1355768.txt.xml").read()
 	# xml = open('/home/rldata/jingyun/nyt_corpus/summary_annotated/1996summary_annotated/0886987.txt.xml').read()
-	# text = A(xml)
-	# print(text)
+	xml = open('/home/rldata/jingyun/nyt_corpus/summary_annotated/1996summary_annotated/0889868.txt.xml').read()
+	text = A(xml)
+	print(text)
 	# print(_group_ner(text.sentences[0]["tokens"],2))
-	# print(_merge_tree([[0],[1],[2,0,1],[3],[4],[3,4],[7,8,9],[8,9]]))
-	# print(_extractor(text.sentences[4],"PERSON"))
+	# print(_extractor(text.sentences[4],"LOCATION"))
+	print(_extractor_linked(text.sentences[4],'VERB'))
 	# exit(0) 
 
 	# files = ['2001summary_annotated/1355765.txt.xml','2001summary_annotated/1355764.txt.xml','2001summary_annotated/1355768.txt.xml']
@@ -336,32 +430,34 @@ def test_extractor():
 	print(len(files))
 	# files = files[:10000]
 	
-	ners = ["PERSON","ORGANIZATION","LOCATION","TIME","DURATION","DATE","SET"]
-	fnames = ["NER_input/"+i.lower()+"_all.pkl" for i in ners]
+	# ners = ["PERSON","ORGANIZATION","LOCATION"]
+	# fnames = ["NER_input/"+i.lower()+"_all_rawer.pkl" for i in ners]
 	# gen_input(files,save_file=True,
 	# 	NER = ners, save_file_name=fnames)
-	gen_input(files,thread=5, save_file = True, save_file_name = ["NER_input/person_all-1.pkl","NER_input/org_all-1.pkl"])
+	# gen_input(files,thread=5, save_file = True, save_file_name = ["NER_input/person_all-1.pkl","NER_input/org_all-1.pkl"])
 	# for f in files:
 	# print(_gen_input((files[13],["PERSON"])))
+
+	gen_input(files,thread = 5,save_file = True, NER = ["VERB"],save_file_name = ["NER_input/verbs_all.pkl"])
 
 
 
 def test_cluster():
-	dicts = pickle.load(open("NER_input/org_sample.pkl"))
-	# dicts = pickle.load(open("NER_input/person_all.pkl"))
+	dicts = pickle.load(open("NER_input/org_all.pkl"))
+	# dicts = pickle.load(open("NER_input/organization_all.pkl"))
 	print(len(dicts))
 	# word2id = {v[0][v[1]]:k for k,v in dicts.items()} # specific NER to its id
 	# print(seqs)
 	Z = make_cluster_tree(dicts)
-	pickle.dump(Z, open("NER_result/linkage/Z_org_sample.pkl","wb"))
-	# Z = pickle.load(open("NER_result/linkage/Z_person_all_w_punct.pkl"))
+	pickle.dump(Z, open("NER_result/linkage/Z_organization_all.pkl","wb"))
+	# Z = pickle.load(open("NER_result/linkage/Z_person_all.pkl"))
 	seqs = [i[0] for i in dicts.values()]
 
 	# clus2id, clus2seq, id2clus = cut_tree(dicts, seqs,Z,5)
 	# print(clus2id)
 	# print(clus2seq)
 	print("Generating clusters...")
-	cluster(dicts, seqs, tree = Z, file_name="NER_result/org_sample")
+	cluster(dicts, seqs, tree = Z, file_name="NER_result/organization_all")
 	
 
 
@@ -370,6 +466,8 @@ if __name__ == '__main__':
 
 	test_extractor()
 	# test_cluster()
+	# test_clean()
+	# print_info()
 
 
 
