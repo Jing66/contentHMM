@@ -47,6 +47,9 @@ def log_exception(e):
     exception_docstring = e.__doc__,
     exception_message = e.message))
 
+def log_file(f):
+	logging.error(f)
+
 def extract_function_name():
     tb = sys.exc_info()[-1]
     stk = traceback.extract_tb(tb, 1)
@@ -110,8 +113,14 @@ def _gen_input((f,NER)):
 		for sent in text.sentences:
 			for i in range(len(NER)):
 				# repre = _extractor(sent,NER[i]) # extract NER exact
-				repre = _extractor_linked(sent,NER[i]) # extracting linkage
-				if repre:
+                                try:
+                                    repre = _extractor_linked(sent,NER[i]) # extracting linkage
+                                except Exception as e:
+                                    print("Exception Caught at file %s, sentence %s"%(f,i))
+                                    log_file(f)
+                                    log_exception(e)
+                                    exit(1)
+                                if repre:
 					results[i].extend(repre)
 		
 		return results
@@ -123,38 +132,45 @@ def _extractor_linked(sent,NER):
 	# return ([context words],head word)
 	out = []
 	tokens = [i for i in sent['tokens'] 
-		if i['lemma'].isalpha()  or re.findall(r'^\-?[1-9][0-9]*\.?[0-9]*',i['lemma']) # and i['lemma'] not in STOPWORDS
-			or i['ner']]
+		if #i['lemma'].isalpha()  or re.findall(r'^\-?[1-9][0-9]*\.?[0-9]*',i['lemma']) # and i['lemma'] not in STOPWORDS
+		  i['ner'] or i['pos'].isalpha()]
 	N = len(tokens)
 
-	# VERB => NN
-	if NER == "VERB":
-		for i in range(N):
-			w = tokens[i]
+	
+	for i in range(N):
+		w = tokens[i]
+		t_root = None
+		if NER == "VERB":
 			if re.findall(r'VB',w['pos']):
 				# print("Find a VB*: %s"%(w))
 				t_root = _link_verb(w)
-				# print(t_root)
-				if not t_root:
-					continue
-				# get the context around t_root
-				idxs = [tokens.index(t) for t in t_root]
+		else:
+			if w['ner'] == NER:
+				# print("Find a DATE*: %s"%(w))
+				t_root = _link_date(w)
+				
+		if not t_root:
+			continue
+		# else:
+			# print(t_root)
 
-				for idx in idxs:
-					if N <= 9:
-						wl = [i['lemma'] for i in tokens]
-					elif idx <4:
-						wl = [START]+[i['lemma'] for i in tokens[:idx+4]]
-						idx +=1
-					elif idx >= N-4:
-						wl = [i['lemma'] for i in tokens[idx-4:]]+[END]
-						idx = 4
-					else:
-						wl = [i['lemma'] for i in tokens[idx-4:idx+4]]
-						idx = 4
-					out.append((tuple(wl),tuple([idx])))
-	else: # TIME => VERB
-		pass
+		# get the context around t_root
+		idxs = [tokens.index(t) for t in t_root]
+
+		for idx in idxs:
+			if N <= 9:
+				wl = [i['lemma'] for i in tokens]
+			elif idx <4:
+				wl = [START]+[i['lemma'] for i in tokens[:idx+5]]
+				idx +=1
+			elif idx >= N-4:
+				wl = [i['lemma'] for i in tokens[idx-4:]]+[END]
+				idx = 4
+			else:
+				wl = [i['lemma'] for i in tokens[idx-4:idx+5]]
+				idx = 4
+			out.append((tuple(wl),tuple([idx])))
+
 
 	return list(set(out))
 
@@ -217,7 +233,7 @@ def _extractor(sent, NER):
 
 
 def _link_verb(token):
-	# return a noun token (why not index? punctuations get kicked out) that the verb is referred to
+	# return a list of noun token (why not index? punctuations get kicked out) that the verb is referred to
 	children = token["children"]
 	parents = token["parents"]
 	out = []
@@ -237,6 +253,19 @@ def _link_verb(token):
 				out.append(child)
 	return out
 
+def _link_date(token):
+	# return a list of noun linked to date
+	parents = token["parents"]
+	out = []
+	for _,parent in parents:
+		# link to parent verb or noun
+		if (re.findall(r"NN",parent["pos"]) or re.findall(r"VB",parent["pos"])) and (not parent['ner'] or re.findall(r'PERSON|LOCATION|ORGANIZATION',parent['ner']) ):
+		# only link to noun
+		# if re.findall(r"NN",parent["pos"]) and (not parent['ner'] or re.findall(r'PERSON|LOCATION|ORGANIZATION',parent['ner']) ):
+			out.append(parent)
+		else:
+			out.extend(_link_date(parent))
+	return out
 
 def _group_ner(tokens,idx):
 	# given a sentence (list of tokens) and index where the NER starts at, find the group of words that belong to the same ner. return indices
@@ -403,22 +432,23 @@ def _concat(wuple_w):
 
 
 def test_clean():
-	dicts = pickle.load(open("NER_input/duration_all.pkl"))
+	dicts = pickle.load(open("NER_input/organization_all_rawer.pkl"))
 	print(len(dicts))
 	dicts = _cleanup(dicts)
 	print(len(dicts))
-	pickle.dump(dicts,open("NER_input/duration_all.pkl",'wb'))
+	pickle.dump(dicts,open("NER_input/organization_all_rawer.pkl",'wb'))
 
 
 def test_extractor():
 	# xml = open("/home/ml/jliu164/corpus/nyt_corpus/summary_annotated/2001summary_annotated/1355768.txt.xml").read()
 	# xml = open('/home/rldata/jingyun/nyt_corpus/summary_annotated/1996summary_annotated/0886987.txt.xml').read()
-	xml = open('/home/rldata/jingyun/nyt_corpus/summary_annotated/1996summary_annotated/0889868.txt.xml').read()
-	text = A(xml)
-	print(text)
-	# print(_group_ner(text.sentences[0]["tokens"],2))
-	# print(_extractor(text.sentences[4],"LOCATION"))
-	print(_extractor_linked(text.sentences[4],'VERB'))
+	# xml = open('/home/rldata/jingyun/nyt_corpus/summary_annotated/1996summary_annotated/0889868.txt.xml').read()
+	# xml = open("/home/rldata/jingyun/nyt_corpus/summary_annotated/1996summary_annotated/0892714.txt.xml").read()
+	# text = A(xml)
+	# print(text)
+	# # print(_group_ner(text.sentences[0]["tokens"],2))
+	# # print(_extractor(text.sentences[4],"LOCATION"))
+	# print(_extractor_linked(text.sentences[2],'TIME'))
 	# exit(0) 
 
 	# files = ['2001summary_annotated/1355765.txt.xml','2001summary_annotated/1355764.txt.xml','2001summary_annotated/1355768.txt.xml']
@@ -438,18 +468,19 @@ def test_extractor():
 	# for f in files:
 	# print(_gen_input((files[13],["PERSON"])))
 
-	gen_input(files,thread = 5,save_file = True, NER = ["VERB"],save_file_name = ["NER_input/verbs_all.pkl"])
+	gen_input(files,thread = 5,save_file = True, NER = ["TIME"],save_file_name = ["NER_input/time_all_linkAll.pkl"])
 
 
 
-def test_cluster():
-	dicts = pickle.load(open("NER_input/org_all.pkl"))
-	# dicts = pickle.load(open("NER_input/organization_all.pkl"))
+def test_cluster(fi,fd):
+	dicts = pickle.load(open("NER_input/"+fi))
+	choose = np.random.choice(len(dicts)-1,size = int(0.1*len(dicts)),replace = False)
+	dicts = dict([dicts.items()[i] for i in choose])
 	print(len(dicts))
 	# word2id = {v[0][v[1]]:k for k,v in dicts.items()} # specific NER to its id
 	# print(seqs)
-	Z = make_cluster_tree(dicts)
-	pickle.dump(Z, open("NER_result/linkage/Z_organization_all.pkl","wb"))
+	Z = make_cluster_tree(dicts, force_head = False)
+	pickle.dump(Z, open("NER_result/linkage/Z_"+fd+".pkl","wb"))
 	# Z = pickle.load(open("NER_result/linkage/Z_person_all.pkl"))
 	seqs = [i[0] for i in dicts.values()]
 
@@ -457,15 +488,21 @@ def test_cluster():
 	# print(clus2id)
 	# print(clus2seq)
 	print("Generating clusters...")
-	cluster(dicts, seqs, tree = Z, file_name="NER_result/organization_all")
+	cluster(dicts, seqs, tree = Z, file_name="NER_result/"+fd)
 	
 
 
 if __name__ == '__main__':
-	setup_logging_to_file('loggings/ner_'+time.strftime("%d_%m_%Y")+"_"+time.strftime("%I:%M:%S")+".log")
+#	setup_logging_to_file('loggings/ner_'+time.strftime("%d_%m_%Y")+"_"+time.strftime("%I:%M:%S")+".log")
 
-	test_extractor()
-	# test_cluster()
+	try:
+		test_extractor()
+		# test_cluster("person_all_rawer.pkl","person_all_rawer")
+	except KeyboardInterrupt as e:
+		print(e)
+		os._exit()
+
+	
 	# test_clean()
 	# print_info()
 
