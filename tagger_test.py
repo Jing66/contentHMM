@@ -10,12 +10,14 @@ import traceback
 import logging
 import exceptions
 import itertools
+import pprint
+pp = pprint.PrettyPrinter(indent=4)
 
 from content_hmm import *
 from multiprocessing.dummy import Pool as ThreadPool
 
 input_dir = '/home/ml/jliu164/code/contentHMM_input/contents/'
-extract_dir = input_dir+"extract/"
+extract_dir = "/home/ml/jliu164/code/contentHMM_extract/contents/"
 tagger_dir = '/home/ml/jliu164/code/contentHMM_tagger/contents/'
 root_dir = "/home/rldata/jingyun/nyt_corpus/"
 choice = "content_annotated"
@@ -53,15 +55,19 @@ def preprocess(file_path,fail_topic, for_extract = False):
                 out += token['word'] + " "
             origin.append(out)
 
-        tokens = [numfy(i['lemma']) for i in tokens if i['word'].isalpha() and i['lemma'].isalpha() and not i['lemma'].lower() in STOPWORDS]
-        vocab = vocab.union(set(tokens))
-        tokens.insert(0,START_SENT)
-        tokens.append(END_SENT) 
-        docs.append(tokens)
+        # tokens = [numfy(i['lemma']) for i in tokens if i['word'].isalpha() and i['lemma'].isalpha() and not i['lemma'].lower() in STOPWORDS]
+        tokens = [i['lemma'] for i in tokens]
+
+        assert len(tokens)>0, (file_path,sentence)
+        if len(tokens)>0:
+            tokens.insert(0,START_SENT)
+            tokens.append(END_SENT) 
+            docs.append(tokens)
+            vocab = vocab.union(set(tokens))
 
     if len(docs)>0:    
-        docs[0] = [START_DOC]+docs[0]   #['**START_DOC**', '**START_SENT**', u'the', u'head', u'of', u'the', u'united', u'nations', u'election', u'agency', u'say', u'sunday', u'that', u'she', u'would', u'resist', u'a', u'report', u'action', u'to', u'oust', u'she', u'from', u'she', u'position', u',', u'a', u'move', u'that', u'would', u'come', u'a', u'week', u'before', u'crucial', u'election', u'she', u'office', u'be', u'oversee', u'in', u'iraq.secretary', u'general', u'kofi', u'annan', u'plan', u'to', u'deliver', u'a', u'dismissal', u'letter', u'to', u'carina', u'perelli', u',', u'head', u'of', u'the', u'united', u'nations', u"'", u'electoral', u'assistance', u'division', u',', u'the', u'associated', u'press', u'report', u'and', u'two', u'united', u'nations', u'official', u'confirm', u'.', '**END_SENT**']]
-    
+        docs[0] = [START_DOC]+docs[0]   #['**START_DOC**', '**START_SENT**', u'the', u'head', u'of', u'confirm', u'.', '**END_SENT**']]
+        docs[-1].append(EOD)
     if not for_extract:
         return docs, vocab
     else:
@@ -77,7 +83,7 @@ def numfy(word):
 
 def group_files(start,end, low, high):
     # return (topic, files_path) pairs
-    in_dir = '/home/ml/jliu164/corpus/nyt_corpus/data/'
+    in_dir = root_dir+"data/"
     dicts = {}
     for i in range(start,end):
         topic_dir = in_dir +str(i)+'/'
@@ -117,12 +123,14 @@ def save_input(start = 2000,end = 2001,low = 400,high = 600, dicts = None, conte
     # save which input
     if content:
         root_dir = "/home/rldata/jingyun/nyt_corpus/content_annotated/"
-        input_dir ='/home/ml/jliu164/code/contentHMM_input/contents2/'
+        # input_dir ='/home/ml/jliu164/code/contentHMM_input/contents/'
+        input_dir = '/home/ml/jliu164/code/Summarization/seq_input/contents/'
         for k,v in files.items():
             files[k] = [re.sub("summary","content",i) for i in v]
     else:
-        root_dir = "/home/ml/jliu164/corpus/nyt_corpus/summary_annotated/"
-        input_dir = '/home/ml/jliu164/code/contentHMM_input/summaries/'
+        root_dir = "/home/rldata/jingyun/nyt_corpus/summary_annotated/"
+        input_dir = '/home/ml/jliu164/code/Summarization/seq_input/summaries/'
+        # input_dir = '/home/ml/jliu164/code/contentHMM_input/summaries/'
         for k,v in files.items():
             files[k] = [re.sub("content","summary",i) for i in v]
 
@@ -152,6 +160,7 @@ def save_input(start = 2000,end = 2001,low = 400,high = 600, dicts = None, conte
             continue
 
         file_path = files[topic]
+        
         M = len(file_path) - len(failed)
         print("Will process in total %s files "%(M))
 
@@ -163,8 +172,18 @@ def save_input(start = 2000,end = 2001,low = 400,high = 600, dicts = None, conte
             docs = []
             vocabs = set()
             origins = []
-            print(" Saving data set "+str(i))
-            for f in file_path:
+            
+            # separate files
+            sep = int(np.round(0.1*M))
+            print(" Saving data set %s: %s files"%(i,sep))
+            if i==0:
+                fs = file_path[:sep]
+            elif i==1:
+                fs = file_path[sep:-sep]
+            else:
+                fs = file_path[-sep:]
+
+            for f in fs:
                 path = root_dir + f
 
                 if path.split("/")[-1].split(".")[0] in failed:
@@ -176,9 +195,9 @@ def save_input(start = 2000,end = 2001,low = 400,high = 600, dicts = None, conte
                     else:
                         doc,vocab = preprocess(path, topic)
                 except IOError:
-                    print("Cannot Open File "+file_path)
-                    with open(fail_path+fail_topic+"_Failed.txt",'a') as f:
-                        f.write(file_path+"\n")
+                    print("Cannot Open File "+path)
+                    with open(fail_path+topic+"_Failed.txt",'a') as f:
+                        f.write(path+"\n")
                 else:
                     docs.append(doc)
                     if i==2:
@@ -186,12 +205,6 @@ def save_input(start = 2000,end = 2001,low = 400,high = 600, dicts = None, conte
                         origins.append(origin)
                     else:
                         vocabs = vocabs.union(vocab)
-                # save dev/train/test data set
-                if (i==0 or i==2) and len(docs) == np.round(0.1*M):
-                    print(len(docs))
-                    break
-                elif i==1 and len(docs) == np.round(0.8*M):
-                    break
 
             output = open(subdir+topic+str(i)+'.pkl','wb')
             if i==2:
@@ -248,7 +261,6 @@ def hyper_train(docs_train, vocab_train, docs_dev, topic, trainer,sample_size = 
         trainer = ContentTaggerTrainer(docs_train, vocab_train, k, t, delta_1, delta_2)
         tree = trainer._tree
         pickle.dump(trainer, open(init_path,'wb'))
-
     delta_1 = np.random.uniform(low = 0.0000001, high = 0.001, size = sample_size)
     k = np.random.randint(10,high =50,size = sample_size)
     t = np.random.randint(2,high =7,size = sample_size)
@@ -285,15 +297,15 @@ def _train((delta_1,delta_2,k,t,tree,trainer,j,docs_dev)):
     return logprob,model
 
 
-def train_all():
+def train_all(inputs = None):
     """
     Train taggers on all topics and store the tagger in: /home/ml/jliu164/code/contentHMM_tagger/
     """
     if not os.path.exists(tagger_dir):
         os.makedirs(tagger_dir)
-
-    # inputs = os.listdir(input_dir)
-    inputs = ["Hijacking"]
+    if not inputs:
+        inputs = os.listdir(input_dir)
+   
     # get all topics data input
     for topic in inputs:
         start_time = time.time()
@@ -315,6 +327,7 @@ def train_all():
             print("%s articles available for training " %(len(docs_train)))
         except:
             print("   Training or development data not available!")
+            print("looking for: "+dev_path+" and "+train_path)
             continue
 
         trainer = None
@@ -326,6 +339,7 @@ def train_all():
             pass
 
         try:
+
             myTagger = hyper_train(docs_train, vocab_train, dev_docs, topic,trainer)
         except Exception as e:
             print("!Training the model for {} failed! ".format(topic))
@@ -480,32 +494,35 @@ def extract_summary_train(tagger,summary_sent, article_sent):
     
     return state_prob
 
-def extract_summary(tagger, article_sent, origin, l, summary_train , article_train):
+def extract_summary(topic,tagger, article_sent, origin, l, summary_train , article_train):
     """
     Given an article(a list of article), produce length-l summary
     return: a list of sentences as summary
     """
-    if (len(summary_train) != len(article_train)):
-        print(" Number of summaries have to match number of documents!")
-        print("There are %s articles but there are %s summaries! " %(len(article_train),len(summary_train)))
+    assert len(summary_train)==len(article_train),"There are %s articles but there are %s summaries! " %(len(article_train),len(summary_train))
 
-    state_prob = extract_summary_train(tagger, summary_train, article_train)
-    print(state_prob)
+    # load/save the trained extraction model
+    try:
+        state_prob = pickle.load(open(extract_dir+topic+".pkl"))
+    except IOError:
+        if not os.path.exists(extract_dir):
+            os.makedirs(extract_dir)
+        state_prob = extract_summary_train(tagger, summary_train, article_train)
+        pickle.dump(state_prob, open(extract_dir+topic+".pkl",'wb'))
+    # print(state_prob)
 
     _ , flat = tagger.viterbi(article_sent, flat = True)
 
     flat = np.array(flat)
-    print("Article clustering: "+str(flat))
+    # print("Article clustering: "+str(flat))
 
-    indices = np.where(flat == np.nanargmax(state_prob))[0]
+    indices =  heapq.nlargest(l, range(len(flat)), flat.take)
+    # print(indices)
 
     summary = []
-    j=0
     for i in indices:
-        if j > l:
-            break
         summary.append(origin[i])
-        j +=1
+    # print(summary)
     return summary
 
 
@@ -568,23 +585,28 @@ def test_permutation():
 
 
 
-def test_extract_summary(topic):
-    docs, origin = pickle.load(open("contentHMM_input/contents2/"+topic+"/"+topic+"2.pkl"))
+def test_extract_summary(topic, times = 1, l = 3):
+    docs, origin = pickle.load(open("contentHMM_input/contents/"+topic+"/"+topic+"2.pkl"))
 
     tagger = pickle.load(open('contentHMM_tagger/contents/'+topic+".pkl"))
     summaries_train, _ = pickle.load(open("contentHMM_input/summaries/"+topic+"/"+topic+"1.pkl"))
     contents_train, _ = pickle.load(open("contentHMM_input/contents/"+topic+"/"+topic+"1.pkl"))
-    valid, _ = pickle.load(open("contentHMM_input/summaries/"+topic+"/"+topic+"2.pkl"))
+    valid, valid_origin = pickle.load(open("contentHMM_input/summaries/"+topic+"/"+topic+"2.pkl"))
     
     length = [len(docs[i]) for i in range(len(docs))]
-    # print(tagger._m)
     print(length)
-    summary = extract_summary(tagger,docs[4],origin[4],5, summary_train = summaries_train, article_train = contents_train)
-    
-    print(sent_to_article([token_to_sent(i) for i in summary]))
+    choices = np.random.permutation(len(docs))[:times]
+    for i in choices:
+        if len(docs[i]) <= l:
+            continue
+        summary = extract_summary(topic, tagger,docs[i],origin[i],l, summary_train = summaries_train, article_train = contents_train)
+        print("\n\n summary:")
+        pp.pprint(summary)
+        print("\n origin document:")
+        pp.pprint(origin[i])
 
-    # print(">>>> Actual Summary:")
-    # print(sent_to_article([token_to_sent(i) for i in valid[2]]))
+        print("Actual Summary:")
+        pp.pprint(valid_origin[i])
 
 
 
@@ -628,7 +650,28 @@ def test_hyper_train():
     pickle.dump(new_tagger, open("Olympic Games.pkl",'wb'))
 
 
+def checkLength(topics):
+    """
+    Sanity check: if the length of test set in contents and summaries are the same.
+    """
+    for topic in topics:
+        content_path = '/home/ml/jliu164/code/contentHMM_input/contents/'+topic+"/"+topic+"1.pkl"
+        # content2_path = '/home/ml/jliu164/code/contentHMM_input/contents2/'+topic+"/"+topic+"1.pkl"
+        summary_path = '/home/ml/jliu164/code/contentHMM_input/summaries/'+topic+"/"+topic+"1.pkl"
 
+        cont, v_cont = pickle.load(open(content_path))
+        # cont2,_ = pickle.load(open(content2_path))
+        summary, v_sum = pickle.load(open(summary_path))
+        print("Topic %s: training set: Content has %s files,%s vocab, summary has %s files, %s vocab."%(topic,len(cont),len(v_cont),len(summary),len(v_sum)))
+
+        content_path = '/home/ml/jliu164/code/contentHMM_input/contents/'+topic+"/"+topic+"2.pkl"
+        # content2_path = '/home/ml/jliu164/code/contentHMM_input/contents2/'+topic+"/"+topic+"2.pkl"
+        summary_path = '/home/ml/jliu164/code/contentHMM_input/summaries/'+topic+"/"+topic+"2.pkl"
+
+        cont,o = pickle.load(open(content_path))
+        # cont2,_ = pickle.load(open(content2_path))
+        summary,_ = pickle.load(open(summary_path))
+        print("testing set: Content has %s files,  summary has %s files."%(len(cont),len(summary)))
 
 
 def summarize_topics(topics_to_train):
@@ -638,10 +681,10 @@ def summarize_topics(topics_to_train):
     """
     # dicts = pickle.load(open(filter_result_path+"TOTAL.pkl"))
     # dicts_to_train = {k:v for k,v in dicts.items() if k in topics_to_train}
-    save_path = "topics_all.pkl"
+    save_path = "filter_results/topic2files(content).pkl"
     try:
-        print("Summary already available!")
         dicts_to_train_all = pickle.load(open(save_path))
+        print("Summary already available!")
         dicts_to_train = {k:v for k,v in dicts_to_train_all.items() if k in topics_to_train}
         return dicts_to_train
     except IOError:
@@ -666,13 +709,13 @@ def summarize_topics(topics_to_train):
 
 
 if __name__ == '__main__':    
-    setup_logging_to_file("main.log")
+    # setup_logging_to_file('loggings/tagger_test_'+time.strftime("%d_%m_%Y")+"_"+time.strftime("%I:%M:%S")+".log")
 
-   # test_extract_summary("Suicides and Suicide Attempts")
+    # test_extract_summary("Police Brutality and Misconduct", times = 7)
     # test_permutation()
     # test_hyper_train()
 
-    # train_all()
+    # train_all(inputs = ["Police Brutality and Misconduct"])
 
     # permutation_test(25,10)
 
@@ -684,14 +727,14 @@ if __name__ == '__main__':
     # c,f = tagger.viterbi(docs[3],flat = True)
     # print(dict(Counter(f)))
 
-    #topics_to_train = set(["Assualts", "Suicides and Suicide Attempts", "Police Brutality and Misconduct", 
-    #    "Sex Crimes", "Drug Abuse and Traffic", "Murders and Attempted Murders", "Hijacking", 
-    #    "Assassinations and Attempted Assassinations", 
-    #    "War Crimes and Criminals", "Independence Movements and Secession"])
+    topics_to_train = set([ "Suicides and Suicide Attempts", "Police Brutality and Misconduct", 
+       "Sex Crimes", "Drug Abuse and Traffic", "Murders and Attempted Murders", "Hijacking", 
+      "Assassinations and Attempted Assassinations", 
+       "War Crimes and Criminals", "Independence Movements and Secession","Tests and Testing"])
+    topics_to_train = set(["War Crimes and Criminals"])
+    dicts_to_train = summarize_topics(topics_to_train) 
+    save_input(dicts = dicts_to_train, content =False, redo =True)
 
-    topics_to_train = set(["Suicides and Suicide Attempts","Hijacking","Assassinations and Attempted Assassinations","Independence Movements and Secession"])
-    dicts_to_train = summarize_topics(topics_to_train)
-
-    save_input(dicts = dicts_to_train, content = True, redo = True)
+    # checkLength(topics_to_train)
 
     
