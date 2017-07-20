@@ -55,10 +55,10 @@ def preprocess(file_path,fail_topic, for_extract = False):
                 out += token['word'] + " "
             origin.append(out)
 
-        # tokens = [numfy(i['lemma']) for i in tokens if i['word'].isalpha() and i['lemma'].isalpha() and not i['lemma'].lower() in STOPWORDS]
-        tokens = [i['lemma'] for i in tokens]
+        tokens = [numfy(i['lemma']) for i in tokens if i['word'].isalpha() and i['lemma'].isalpha() and not i['lemma'].lower() in STOPWORDS]
+        # tokens = [i['lemma'] for i in tokens]
 
-        assert len(tokens)>0, (file_path,sentence)
+        # assert len(tokens)>0, (file_path,sentence)
         if len(tokens)>0:
             tokens.insert(0,START_SENT)
             tokens.append(END_SENT) 
@@ -67,7 +67,7 @@ def preprocess(file_path,fail_topic, for_extract = False):
 
     if len(docs)>0:    
         docs[0] = [START_DOC]+docs[0]   #['**START_DOC**', '**START_SENT**', u'the', u'head', u'of', u'confirm', u'.', '**END_SENT**']]
-        docs[-1].append(EOD)
+        # docs[-1].append(EOD)
     if not for_extract:
         return docs, vocab
     else:
@@ -123,14 +123,14 @@ def save_input(start = 2000,end = 2001,low = 400,high = 600, dicts = None, conte
     # save which input
     if content:
         root_dir = "/home/rldata/jingyun/nyt_corpus/content_annotated/"
-        # input_dir ='/home/ml/jliu164/code/contentHMM_input/contents/'
-        input_dir = '/home/ml/jliu164/code/Summarization/seq_input/contents/'
+        input_dir ='/home/ml/jliu164/code/contentHMM_input/contents/'
+        # input_dir = '/home/ml/jliu164/code/Summarization/seq_input/contents/'
         for k,v in files.items():
             files[k] = [re.sub("summary","content",i) for i in v]
     else:
         root_dir = "/home/rldata/jingyun/nyt_corpus/summary_annotated/"
-        input_dir = '/home/ml/jliu164/code/Summarization/seq_input/summaries/'
-        # input_dir = '/home/ml/jliu164/code/contentHMM_input/summaries/'
+        # input_dir = '/home/ml/jliu164/code/Summarization/seq_input/summaries/'
+        input_dir = '/home/ml/jliu164/code/contentHMM_input/summaries/'
         for k,v in files.items():
             files[k] = [re.sub("content","summary",i) for i in v]
 
@@ -142,7 +142,7 @@ def save_input(start = 2000,end = 2001,low = 400,high = 600, dicts = None, conte
                 paths = f.readlines()
                 failed_l = [p.split("/")[-1].split(".")[0] for p in paths]
                 failed = set(failed_l)
-                # print(failed)
+                print(failed)
         except IOError:
             print("No fail record for topic "+topic)
             pass
@@ -164,81 +164,56 @@ def save_input(start = 2000,end = 2001,low = 400,high = 600, dicts = None, conte
         M = len(file_path) - len(failed)
         print("Will process in total %s files "%(M))
 
-        # [0]: dev set;[ 1]:train set; [2]: test set
+        # [0]: dev set;[1]:train set; [2]: test set
         # data_set = file_path[:M],file_path[M:-M],file_path[-M:]
-        
+        i  = 0
+        docs = []
+        vocabs = set()
+        origins = []
+        sep = int(np.round(0.1*M))
+        print(" Separation point: %s"%(sep))
         # save dataset
-        for i in range(3):
-            docs = []
-            vocabs = set()
-            origins = []
-            
-            # separate files
-            sep = int(np.round(0.1*M))
-            print(" Saving data set %s: %s files"%(i,sep))
-            if i==0:
-                fs = file_path[:sep]
-            elif i==1:
-                fs = file_path[sep:-sep]
-            else:
-                fs = file_path[-sep:]
-
-            for f in fs:
-                path = root_dir + f
-
-                if path.split("/")[-1].split(".")[0] in failed:
-                    continue
-
-                try:
-                    if i==2:
-                        doc, origin = preprocess(path,topic,for_extract = True)
-                    else:
-                        doc,vocab = preprocess(path, topic)
-                except IOError:
-                    print("Cannot Open File "+path)
-                    with open(fail_path+topic+"_Failed.txt",'a') as f:
-                        f.write(path+"\n")
+        for f in file_path:
+            path = root_dir + f
+            if path.split("/")[-1].split(".")[0] in failed:
+                continue
+            try:
+                if i==2:
+                    doc, origin = preprocess(path,topic,for_extract = True)
                 else:
+                    doc,vocab = preprocess(path, topic)
+            except IOError:
+                print("Cannot Open File "+path)
+                with open(fail_path+topic+"_Failed.txt",'a') as f:
+                    f.write(path+"\n")
+            else:
+                if len(doc) >0:
                     docs.append(doc)
                     if i==2:
                         # print(origin)
                         origins.append(origin)
                     else:
                         vocabs = vocabs.union(vocab)
-
-            output = open(subdir+topic+str(i)+'.pkl','wb')
-            if i==2:
-                pickle.dump((docs,origins),output)
-            else:
+                else:
+                    print("No summary: "+path)
+                    with open(fail_path+topic+"_Failed.txt",'a') as f:
+                        f.write(path+"\n")
+            if len(docs) == sep and i==0 or len(docs) == 8*sep and i==1:
+                output = open(subdir+topic+str(i)+'.pkl','wb')
                 pickle.dump((docs,vocabs),output)
-            print(" All {} articles saved! " .format(len(docs)))
-            output.close()
+                output.close()
+                print(" All {} articles saved! " .format(len(docs)))
+                i += 1
+                docs = []
+                vocabs = set()
+                origins = []
+            if i==2 and len(docs) == sep:
+                output = open(subdir+topic+str(i)+'.pkl','wb')
+                pickle.dump((docs,origins),output)
+                output.close()
+                print(" All {} articles saved! " .format(len(docs)))
+            
     
-        # # make directory
-        # if not os.path.exists(extract_dir):
-        #     os.makedirs(extract_dir)
-
-        # docs = []
-        # vocabs = set()
-        # # save dataset for testing
-        # print(" Saving testing data set")
-        # docs= []
-        # vocabs= set()
-        # for f in data_set[2]:
-        #     path = root_dir+f
-        #     if path.split("/")[-1].split(".")[0] in failed:
-        #         continue
-           
-        #     doc,vocab = preprocess(path, topic)
-        #     docs.append(doc)
-        #     vocabs = vocabs.union(vocab)
-
-        # print(extract_dir+topic+"2.pkl")
-        # output = open(extract_dir+topic+str(i)+'.pkl','wb')
-        # pickle.dump((docs,vocabs),output)
-        # print(" All {} articles saved! " .format(len(docs)))
-        # output.close()
-
 
 ########################################################################################################
 #########################################   Model Training  ############################################
@@ -663,7 +638,7 @@ def checkLength(topics):
         # cont2,_ = pickle.load(open(content2_path))
         summary, v_sum = pickle.load(open(summary_path))
         print("Topic %s: training set: Content has %s files,%s vocab, summary has %s files, %s vocab."%(topic,len(cont),len(v_cont),len(summary),len(v_sum)))
-
+        assert len(cont), len(summary)
         content_path = '/home/ml/jliu164/code/contentHMM_input/contents/'+topic+"/"+topic+"2.pkl"
         # content2_path = '/home/ml/jliu164/code/contentHMM_input/contents2/'+topic+"/"+topic+"2.pkl"
         summary_path = '/home/ml/jliu164/code/contentHMM_input/summaries/'+topic+"/"+topic+"2.pkl"
@@ -672,6 +647,7 @@ def checkLength(topics):
         # cont2,_ = pickle.load(open(content2_path))
         summary,_ = pickle.load(open(summary_path))
         print("testing set: Content has %s files,  summary has %s files."%(len(cont),len(summary)))
+        assert len(cont), len(summary)
 
 
 def summarize_topics(topics_to_train):
@@ -715,7 +691,7 @@ if __name__ == '__main__':
     # test_permutation()
     # test_hyper_train()
 
-    # train_all(inputs = ["Police Brutality and Misconduct"])
+    # train_all(inputs = ["War Crimes and Criminals"])
 
     # permutation_test(25,10)
 
@@ -731,10 +707,10 @@ if __name__ == '__main__':
        "Sex Crimes", "Drug Abuse and Traffic", "Murders and Attempted Murders", "Hijacking", 
       "Assassinations and Attempted Assassinations", 
        "War Crimes and Criminals", "Independence Movements and Secession","Tests and Testing"])
-    topics_to_train = set(["War Crimes and Criminals"])
+    topics_to_train = set(["Sex Crimes", "Drug Abuse and Traffic", "Murders and Attempted Murders"])
     dicts_to_train = summarize_topics(topics_to_train) 
-    save_input(dicts = dicts_to_train, content =False, redo =True)
-
-    # checkLength(topics_to_train)
+    save_input(dicts = dicts_to_train, content =False, redo =True) # if for new model: add EOD, no numfy, save in other dir
+    topics = set(["Police Brutality and Misconduct","Suicides and Suicide Attempts"])
+    checkLength(topics_to_train)
 
     
