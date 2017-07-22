@@ -7,19 +7,20 @@ from sklearn.utils import shuffle
 
 NUM_CAND = 10
 _D_cand = 306 # dim(Ycandidate[i])
-_D_Cont = 300 # dim(Context[t])
+_D_Cont = 300 # dim(Context)
 
 def _init_weight(Mi, Mo):
     return np.random.randn(Mi, Mo) / np.sqrt(Mi + Mo)
 
 # generative model
 class GNN(object):
-    def __init__(self):
-        pass
+    def __init__(self, p_keep):
+        self.droprate = p_keep
     
     def fit(self, X, Y, learning_rate=10e-1, mu=0.99, reg=1.0,fn=T.tanh, epochs=500, margin = 1, show_fig=False):
         # Yc is candidate set, a list of Ycand 
         assert len(X)==len(Y)
+
 
         self.fn = fn
         N = len(X) # number of documents-summary pairs
@@ -61,6 +62,7 @@ class GNN(object):
         thY = T.vector('Y') # output one summary sentence: (Dy,)
         thYcand = T.fmatrix('Ycand') # represent the candidates. size (NUM_CAND, Dcand)
         
+        mask = self.rng.binomial(n=1, p=p, size=thX.shape) # dropouts
         ############## Recurrence ###############
         def recurrence(self, Y_t1, Y_cand, X_i): # Y_i not None when training, to calculate cost
             C_t = self.fn((self.Wxc1.dot(X_i)).dot(Wxc2) + (self.Wyc1.dot(Y_t1)).dot(Wyc2)) # (NUM_CAND, K)
@@ -132,8 +134,10 @@ class GNN(object):
             plt.plot(costs)
         plt.show()
 
+
 def _get_cand(X_i):
     # for a document X, generate a set of candidate for each sentence
+
 
 
 def train():
