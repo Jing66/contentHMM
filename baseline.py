@@ -1,6 +1,7 @@
 from keras.models import Sequential
 from keras.layers import Dense
 from keras import optimizers
+from keras.metrics import binary_accuracy as accuracy
 import numpy as np
 import json
 import pickle
@@ -24,6 +25,7 @@ input_path = "/home/ml/jliu164/code/contentHMM_input/"
 # input_path = data_path+"/seq_input/"
 NUM_CAND = 10
 _PAD_score = 0
+SKIP_SET = set([START_SENT, END_SENT,SOD, EOD])
 
 
 
@@ -78,7 +80,8 @@ def _get_seq2vec(topic, add_EOD = True, content = True, save = True):
 
 
 # read importance score for every sentence
-def _get_importance(topic, ds, filename = "pred/pred_M0_train_model.npy"):
+def _get_importance(topic, ds,context_sz):
+	filename = "pred/pred_M"+str(context_sz)+("_train" if ds==1 else "_test")+"_model.npy"
 	m = np.load(src_path+filename) # this is for each word! Need to convert into sentence importance score
 	docs,_ = pickle.load(open(input_path+"contents/"+topic+"/"+topic+str(ds)+".pkl","rb"))
 	N = sum([len(i) for i in docs])
@@ -90,7 +93,7 @@ def _get_importance(topic, ds, filename = "pred/pred_M0_train_model.npy"):
 		for sentences in doc:
 			M_ij = [] # scores in one sentence
 			for word in sentences:
-				if word in set([START_SENT, END_SENT,SOD, EOD]):
+				if word in SKIP_SET:
 					continue
 				M_ij.append(m[c_w])
 				c_w += 1
@@ -101,7 +104,7 @@ def _get_importance(topic, ds, filename = "pred/pred_M0_train_model.npy"):
 	return M
 	
 
-def _get_data(ds=1, topic ='War Crimes and Criminals' ,save_name = data_path+"model_input/baseNN/War"):
+def _get_data(ds=1, topic ='War Crimes and Criminals' ,save_name = data_path+"model_input/baseNN/War", metrics = "Unigram", context_sz = 0):
 	"""
 	ds = 0: dev set, ds=1: train set, ds=2: test set
 	candidate set: the next NUM_CAND-1 sentences of x[i]
@@ -111,11 +114,11 @@ def _get_data(ds=1, topic ='War Crimes and Criminals' ,save_name = data_path+"mo
 	X_saved = True
 	Y_saved = True
 	try:
-		X = io.mmread(save_name+str(ds)+"_X.mtx")
+		X = io.mmread(save_name+str(context_sz)+("_train" if ds==1 else "_test")+"_X.mtx")
 	except IOError:
 		X_saved = False
 	try:
-		Y = io.mmread(save_name+str(ds)+"_Y.mtx")
+		Y = io.mmread(save_name+str(context_sz)+("_train" if ds==1 else "_test")+"_Y.mtx")
 	except IOError:
 		Y_saved = False
 	if X_saved and Y_saved:
@@ -125,8 +128,8 @@ def _get_data(ds=1, topic ='War Crimes and Criminals' ,save_name = data_path+"mo
 	summary, _ = pickle.load(open(input_path+"summaries/"+topic+"/"+topic+str(ds)+".pkl","rb"))
 	assert len(doc) == len(summary), "More documents than summary!" if len(doc) > len(summary) else "Less documents than summary!"
 	
-	doc = doc[:2]
-	summary = summary[:2]
+	# doc = doc[:2]
+	# summary = summary[:2]
 
 	print("total number of sentences: "+str(sum([len(i) for i in doc])))
 	if not Y_saved:
@@ -134,9 +137,10 @@ def _get_data(ds=1, topic ='War Crimes and Criminals' ,save_name = data_path+"mo
 		# get Y
 		Y = dok_matrix((sum([len(i) for i in doc]), NUM_CAND),dtype = np.int32)
 		idx = 0
-		with open("/home/ml/jliu164/code/data/we_file.json") as f:
-			We = json.load(f)
-			unk_vec = We["UNK"]
+		if metrics == "Euclidean" or "Cosine":
+			with open("/home/ml/jliu164/code/data/we_file.json") as f:
+				We = json.load(f)
+				unk_vec = We["UNK"]
 		for d,s in zip(doc,summary):
 			print("*************************************")
 			print("Document has length %s; summary has length %s"%(len(d),len(s)))
@@ -144,31 +148,42 @@ def _get_data(ds=1, topic ='War Crimes and Criminals' ,save_name = data_path+"mo
 			uni_sum = [set(i) for i in s]
 			y = np.zeros(len(s)) # s[i] is most close to d[j]
 			for i in range(len(s)):
-				# max_sim = -1
 				max_dist = np.inf
-				s_vec = reduce((lambda x,y: x+y),[np.array(We.get(w,unk_vec)) for s in d[i]])
+				if metrics == "Euclidean" or "Cosine":
+					s_vec = reduce((lambda x,y: x+y),[np.array(We.get(w,unk_vec),dtype = np.float32) for w in s[i] if w not in SKIP_SET])
+				
 				for j in range(len(d)):
-					# unigram cosine similarity
-					# numer = len(uni_doc[j].intersection(uni_sum[i]))
-					# denom = math.sqrt(len(uni_doc[j])*len(uni_sum[i]))
-					# sim = float(numer)/denom
-					# if sim > max_sim:
-					# 	y[i] = j
-					# 	max_sim = sim
+					# Unigram cosine similarity
+					if metrics == "Unigram":
+						numer = len(uni_doc[j].intersection(uni_sum[i]))
+						denom = math.sqrt(len(uni_doc[j])*len(uni_sum[i]))
+						dist = 1- float(numer)/denom
+						
+					# Euclidean distance: doesn't really make sense, should consider `vector direction`
+					elif metrics == "Euclidean": 
+						d_vec = reduce((lambda x,y: x+y),[np.array(We.get(w,unk_vec),dtype = np.float32) for w in d[j] if w not in SKIP_SET])
+						dist = np.sum((s_vec - d_vec)**2)
+						print(dist)
 
-					# Euclidean distance
-					d_vec = reduce((lambda x,y: x+y),[np.array(We.get(w,unk_vec)) for w in d[j]])
-					dist = np.sum((s_vec - d_vec)**2)
+					# Cosine by vectors
+					elif metrics == "Cosine":
+						d_vec = reduce((lambda x,y: x+y),[np.array(We.get(w,unk_vec),dtype = np.float32) for w in d[j] if w not in SKIP_SET])
+						numer = np.sum(s_vec * d_vec)
+						denom = np.sqrt(np.sum(s_vec**2) * np.sum(d_vec**2))
+						dist = 1 - numer/denom
+
 					if dist < max_dist:
 						y[i] = j
 						max_dist = dist
+						
 			y = sorted(list(set(y))) # every sentence in summary is similar to a different sentence in doc
+			# print(y)
 			c = 0
 			for k in range(max(0,int(y[0]-NUM_CAND)),int(y[-1])+1):
-				# print("updating [%s][%s]"%(k, int(y[c])-(k-idx)))
-				if int(y[c])-(k-idx) < NUM_CAND: # only update the ones x[i] can reach
-					Y[idx+k,int(y[c])-(k-idx)] = 1
-					if (y[c])-(k-idx) == 0:
+				if int(y[c])-k < NUM_CAND: # only update the ones x[i] can reach
+					Y[idx+k,int(y[c])-k] = 1
+					# print("Updating [%s][%s]"%(k, int(y[c])-k))
+					if (y[c])-k == 0:
 						c+=1
 				if c == len(y):
 					break
@@ -177,8 +192,8 @@ def _get_data(ds=1, topic ='War Crimes and Criminals' ,save_name = data_path+"mo
 			Y[int(y[-1]+1):idx,...] += np.full((1,NUM_CAND),_PAD_score) # rows after last sentence chosen: pad with -inf
 			# also pad empty candidates with -inf/NaN?
 		if save_name:
-			io.mmwrite(save_name+str(i)+"_Y.mtx", Y)
-	
+			io.mmwrite(save_name+str(context_sz)+("_train" if ds==1 else "_test")+"_Y.mtx", Y)
+
 	if not X_saved:
 		print("Getting X...")
 		# get X
@@ -188,26 +203,24 @@ def _get_data(ds=1, topic ='War Crimes and Criminals' ,save_name = data_path+"mo
 			assert X.shape[0] == Y.shape[0], (X.shape, Y.shape)
 		except IOError:
 			print("Sequence vectors not available! "+fp)
-		M = _get_importance(topic,ds)
+		M = _get_importance(topic,ds, context_sz)
 		X = np.hstack((X,M))
 		print(X.shape)
 		assert X.shape[0] == Y.shape[0], (X.shape, Y.shape)
 
 		if save_name:
-			io.mmwrite(save_name+str(ds)+"_X.mtx", X)
+			io.mmwrite(save_name+str(context_sz)+("_train" if ds==1 else "_test")+"_X.mtx", X)
 	
-	print("X, Y generated! location: "+str(save_name)+str(ds))
+	print("X, Y generated! location: "+str(save_name)+str(context_sz)+("_train" if ds==1 else "_test"))
 	return X,Y
-
 
 
 #################################################
 ############ Baseline Model #####################
 #################################################
-def build_base_model():
-	h_sz = 200
-	fn = ["tanh","relu"]
-	dim_in = 304
+def build_base_model(h_sz = 200, dim_in = 304):
+	
+	fn = ["relu","softmax"]
 	dim_out = 10
 	model = Sequential()
 	model.add(Dense(h_sz, activation = fn[0], input_shape = (dim_in,)))
@@ -217,61 +230,103 @@ def build_base_model():
 
 
 def train():
-	_p = data_path+"model_input/baseNN/War1_"
+	_p = data_path+"model_input/baseNN/War0_train_"
 	X_train = io.mmread(_p+"X.mtx")
 	Y_train = io.mmread(_p+"Y.mtx").toarray()
 	print(X_train.shape)
 	print(Y_train.shape)
 
-	opt = optimizers.Adagrad()	
+	# opt = optimizers.Adagrad()
+	opt = optimizers.SGD(lr = 0.01, decay = 1e-6, momentum=0.9,nesterov=True)
 	model = build_base_model()
 	print(model.summary())
-	model.compile(loss="hinge", optimizer=opt)
-	b_sz = 32
-	hist = model.fit(X_train, Y_train,validation_split=0.15, batch_size=b_sz)
+	model.compile(loss="hinge", optimizer=opt,metrics=['binary_accuracy'])
+
+	hist = model.fit(X_train, Y_train,validation_split=0.15, batch_size=32)
 	print(hist.history.keys())
-	# plt.plot(history.history['acc'])
-	# plt.plot(history.history['val_acc'])
+	print(hist.history['loss'])
+	# print(hist.history['val_acc'])
 
 	# save model:
-	file = h5py.File('models/baseline_War.h5py','w')
+	file = h5py.File('models/baseline_War0.h5py','w')
 	weight = model.get_weights()
 	for i in range(len(weight)):
 		file.create_dataset('weight'+str(i),data=weight[i])
 	file.close()
 
-	scores = model.evaluate(X_train,Y_train)
-	print(scores)
 
-
-def test():
-	_p = data_path+"model_input/baseNN/War2_"
+def test(context_sz, config):
+	_p = data_path+"model_input/baseNN/War"+str(context_sz)+"_test_"
 	X_test = io.mmread(_p+"X.mtx")
 	Y_test = io.mmread(_p+"Y.mtx").toarray()
 	print(X_test.shape)
 	print(Y_test.shape)
-	opt = optimizers.Adagrad()	
+	opt = optimizers.SGD(lr = 0.01, decay = 1e-6, momentum=0.9,nesterov=True)
+	# opt = optimizers.Adagrad()	
 	
-	model = build_base_model()
+	model = build_base_model(config)
 	print(model.summary())
-	model.compile(loss="hinge", optimizer=opt)
+	model.compile(loss="hinge", optimizer=opt,metrics=['binary_accuracy'])
 
-	file=h5py.File('models/baseline_War.h5py','r')
+	file=h5py.File('models/baseline_War'+str(context_sz)+'.h5py','r')
 	weight = []
 	for i in range(len(file.keys())):
 		weight.append(file['weight'+str(i)][:])
 	model.set_weights(weight)
 
 	yp= model.predict(X_test)
-	print(np.max(yp, axis=1))
+	# print(np.max(yp, axis=1))
 	scores = model.evaluate(X_test,Y_test)
-	print(scores)
+
+	print(scores) # [loss, binary_accuracy]
+
+
+
+
+def main(context_sz):
+	# load data
+	_p = data_path+"model_input/baseNN/War"+str(context_sz)+"_train_"
+	X = io.mmread(_p+"X.mtx")
+	Y = io.mmread(_p+"Y.mtx").toarray()
+	N = len(X)
+	X_dev = X[:int(0.1*N)]
+	Y_dev = Y[:int(0.1*N)]
+	X_train = X[int(0.1*N):]
+	Y_train = Y[int(0.1*N):]
+
+	opt = optimizers.SGD(lr = 0.01, decay = 1e-6, momentum=0.9,nesterov=True)
+
+	hidden_sz = [50,75,100,150,200,250,300,350,400]
+	best_score = np.inf
+	best_model = None
+	best_config = None
+	for h in hidden_sz:
+		model = build_base_model(h_sz = h)
+		model.compile(loss="hinge", optimizer=opt,metrics=['binary_accuracy'])
+		model.fit(X_train, Y_train, batch_size=32, verbose = 0)
+		scores = model.evaluate(X_dev, Y_dev)
+		print("\n>>> hz=%s, Scores = %s"%(h, scores))
+		
+		if scores[0] < best_score: # compare loss
+			best_model = model
+			best_config = (h,)
+			best_score = scores[0]
+	# save model
+	file = h5py.File('models/baseline_War'+str(context_sz)+'.h5py','w')
+	weight = best_model.get_weights()
+	for i in range(len(weight)):
+		file.create_dataset('weight'+str(i),data=weight[i])
+	file.close()
+	print("\nModel saved-- config = %s, scores[0] = %s" %(best_config, best_score))
+
+
 
 
 if __name__ == '__main__':
 	# _get_seq2vec('War Crimes and Criminals',save = True)
-	_get_data(ds=1)
+	# _get_data(ds=2,metrics = "Unigram", context_sz=4)
 	# _get_importance('War Crimes and Criminals')
 
 	# train()
-	# test()
+	# main(4)
+	test(4,250)

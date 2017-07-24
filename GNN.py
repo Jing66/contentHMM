@@ -4,32 +4,34 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from sklearn.utils import shuffle
+from HMM_feature import load_data as _load_featured_data
 
 NUM_CAND = 10
 _D_cand = 306 # dim(Ycandidate[i])
-_D_Cont = 300 # dim(Context)
+_D_Cont = 300 # dim(Context[t])
+_PAD = 0 # pad for candidate
 
 def _init_weight(Mi, Mo):
     return np.random.randn(Mi, Mo) / np.sqrt(Mi + Mo)
 
 # generative model
 class GNN(object):
-    def __init__(self, p_keep):
-        self.droprate = p_keep
+    def __init__(self):
+        pass
     
     def fit(self, X, Y, learning_rate=10e-1, mu=0.99, reg=1.0,fn=T.tanh, epochs=500, margin = 1, show_fig=False):
         # Yc is candidate set, a list of Ycand 
         assert len(X)==len(Y)
 
-
         self.fn = fn
         N = len(X) # number of documents-summary pairs
-        n = X[0].shape[0] # number of sentences in each doc => needs padding
         Dx = X[0].shape[1] # X is of size (N , T(n)x , Dx)
         Dy = Y[0].shape[1] # Y is of size (N , T(n)y , Dy)
         Dcand = _D_cand # Ycand is of size (NUM_CAND x Dcand)
-        Tx = max([X[i].shape[0] for i in range(N)]) # longest Tx
-        Ty = max([Y[i].shape[0] for i in range(N)]) # longest Ty
+        # Tx = max([X[i].shape[0] for i in range(N)]) # longest Tx
+        # Ty = max([Y[i].shape[0] for i in range(N)]) # longest Ty
+        Tx = X[0].shape[0]
+        Ty = Y[0].shape[0]
         K = _D_Cont # dimension of context vector
         
         ######################### Initialize weights ######################
@@ -59,16 +61,15 @@ class GNN(object):
         self.params = [self.Wy1x, self.Wys, self.WYs,self.Wxcand, self.bxcand,self.bys,self.bYs]
 
         thX = T.fmatrix('X') # input one doc: (Tx, Dx)
-        thY = T.vector('Y') # output one summary sentence: (Dy,)
+        thY = T.fmatrix('Y') # output summary sentences: (Ty, Dy)
         thYcand = T.fmatrix('Ycand') # represent the candidates. size (NUM_CAND, Dcand)
         
-        mask = self.rng.binomial(n=1, p=p, size=thX.shape) # dropouts
         ############## Recurrence ###############
-        def recurrence(self, Y_t1, Y_cand, X_i): # Y_i not None when training, to calculate cost
-            C_t = self.fn((self.Wxc1.dot(X_i)).dot(Wxc2) + (self.Wyc1.dot(Y_t1)).dot(Wyc2)) # (NUM_CAND, K)
+        def recurrence(self, Y_cand,Y_t1, X_i, Y_i): 
+            # return y(t), cost(t)
+            C_t = self.fn((self.Wxc1.dot(X_i)).dot(Wxc2) + (self.Wyc1.dot(Y_t1.T)).dot(Wyc2)) # (NUM_CAND, K)
             score = self.Wcs.dot(C_t)+self.Wcands.dot(Y_cand) # size (NUM_CAND,)
-            pred = T.argmax(score)
-            
+            pred = T.argmax(score) # (Dy,)
             c = T.switch( thY,
                 -T.mean((margin+score-T.sum(scores*(Y_i>0)))*(Y_i==0)), # hinge loss
                 0.0
@@ -77,10 +78,10 @@ class GNN(object):
         
         [preds, c], _ = theano.scan(
             fn=recurrence,
-            outputs_info = self.h0, # Initialization of Y_t0
+            outputs_info = [pred], # Initialization of Y_t0
             sequences=[thYcand],
-            non_sequences = [thX],
-            n_steps=thX.shape[0],
+            non_sequences = [thX,thY],
+            n_steps=thX.shape[0], # Tx
         )
         ############# End Recurrence #############
         
@@ -95,12 +96,12 @@ class GNN(object):
         
         self.predict_op = theano.function(
             inputs=[thX],
-            outputs=[prediction],
+            outputs=[preds],
             allow_input_downcast=True,
         )
         self.train_op = theano.function(
             inputs=[thX, thY, thYcand],
-            outputs=[cost, prediction],
+            outputs=[cost, preds],
             updates=updates
         )
 
@@ -111,7 +112,7 @@ class GNN(object):
             n_total = 0
             cost = 0
             for j in range(N):
-                Y_cand = _get_cand(X[j])
+                Y_cand = _get_cand(X[j]) #(T(n)x, NUM_CAND, Dcand)
                 try:
                     c, p = self.train_op(X[j], Y[j], Y_cand)
                 except Exception as e:
@@ -135,17 +136,60 @@ class GNN(object):
         plt.show()
 
 
-def _get_cand(X_i):
-    # for a document X, generate a set of candidate for each sentence
+def _get_cand(X_n):
+    # for a document X_n, generate a set of candidate for each sentence.
+    # Input X_i: (T(n)x,Dx). Output Ycand: (T(n), NUM_CAND, Dcand)
+    n = X_n.shape[0] # T(n)x
+    Ycand = np.zeros((n, NUM_CAND, Dcand))
+    for i in range(n-NUM_CAND):
+        Y_cand_j = X_n[i:i+NUM_CAND] # (NUM_CAND, Dx) 
+        Ycand[i] = Y_cand_j
+
+    for i in range(max(0,n-NUM_CAND),n):
+        # needs padding
+        n_pad = n-i
+        Y_pad = np.zeros((n_pad, Dcand))
+        Y_pad.fill(_PAD)
+        Y_cand_j = X_n[i:]
+        Ycand[i] = np.vstack((Y_cand_j,Y_pad))
+    return Y_cand
 
 
+def _load_data(conts, sums, context_sz=0):
+    # Input: list of documents, each list of sentences, each list of words
+    # Output: X:(N, T(n)x,Dx). Y:(N, T(n)y, Dy)
+    assert len(conts)==len(sums)
+    N = len(conts)
+    X_base,Y_base = _load_featured_data(context_sz) # X_base:(# total sentences, Dx)
+    idx = 0
+    X = np.zeros((N, max([len(c) for c in conts]), X_base.shape[1])) # shorter sentences are 0
+    Y = np.zeros((N, max([len(c) for c in sums]), Y_base.shape[1]))
+    for i in range(N):
+        X[i] = X_base[idx:idx+len(conts[i]),...]
+        Y[i] = Y_base[idx:idx+len(sums[i]),...]
+        idx += len(conts[i])
 
+    Y_feat = _feat_Y(Y) # add feat: pos(Yprev), cluster(Yprev)
+    Y = np.hstack((Y,Y_feat))
+    return X,Y
+
+def _feat_Y(Y):
+    pass
+
+
+# TODO
 def train():
     X,Y = get_data()
 
 
-if __name__ == 'main':
-    train()
 
+def testing():
+    _load_data()
+
+
+
+if __name__ == 'main':
+    # train()
+    testing()
 
 
