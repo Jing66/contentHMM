@@ -10,6 +10,7 @@ from scipy.sparse import dok_matrix
 from scipy import io
 from utils import *
 import h5py
+from sklearn.metrics import precision_recall_fscore_support
 from functools import reduce
 
 _We_dim = 300
@@ -215,21 +216,24 @@ def _get_data(ds=1, topic ='War Crimes and Criminals' ,save_name = data_path+"mo
 	return X,Y
 
 
+
+
 #################################################
 ############ Baseline Model #####################
 #################################################
-def build_base_model(h_sz = 200, dim_in = 304):
-	
-	fn = ["relu","softmax"]
+def build_base_model(h_sz = 250, dim_in = 304):
+	fn = ['tanh','softmax']
+	# fn = ["tanh","relu","linear"]
 	dim_out = 10
 	model = Sequential()
 	model.add(Dense(h_sz, activation = fn[0], input_shape = (dim_in,)))
+	# model.add(Dense(100,activation = fn[1]))
 	model.add(Dense(dim_out, activation = fn[1]))
 	return model
 
 
 
-def train():
+def _train():
 	_p = data_path+"model_input/baseNN/War0_train_"
 	X_train = io.mmread(_p+"X.mtx")
 	Y_train = io.mmread(_p+"Y.mtx").toarray()
@@ -238,24 +242,23 @@ def train():
 
 	# opt = optimizers.Adagrad()
 	opt = optimizers.SGD(lr = 0.01, decay = 1e-6, momentum=0.9,nesterov=True)
-	model = build_base_model()
+	model = build_base_model(h_sz=700)
 	print(model.summary())
 	model.compile(loss="hinge", optimizer=opt,metrics=['binary_accuracy'])
 
 	hist = model.fit(X_train, Y_train,validation_split=0.15, batch_size=32)
-	print(hist.history.keys())
-	print(hist.history['loss'])
 	# print(hist.history['val_acc'])
+	yp = model.predict(X_train)
+	y = (yp == yp.max(axis=1, keepdims=1)).astype(float)
+	print(yp[:10])
+	print(y[:10])
+	print(Y_train[:10])
 
-	# save model:
-	file = h5py.File('models/baseline_War0.h5py','w')
-	weight = model.get_weights()
-	for i in range(len(weight)):
-		file.create_dataset('weight'+str(i),data=weight[i])
-	file.close()
+	scores = model.evaluate(X_train,Y_train)
+	print(scores) # [loss, binary_accuracy]
 
 
-def test(context_sz, config):
+def test(context_sz, config, save = 'models/baseline/baseline_War_1h_'):
 	_p = data_path+"model_input/baseNN/War"+str(context_sz)+"_test_"
 	X_test = io.mmread(_p+"X.mtx")
 	Y_test = io.mmread(_p+"Y.mtx").toarray()
@@ -268,22 +271,27 @@ def test(context_sz, config):
 	print(model.summary())
 	model.compile(loss="hinge", optimizer=opt,metrics=['binary_accuracy'])
 
-	file=h5py.File('models/baseline_War'+str(context_sz)+'.h5py','r')
+	file=h5py.File(save+str(context_sz)+'.h5py','r')
 	weight = []
 	for i in range(len(file.keys())):
 		weight.append(file['weight'+str(i)][:])
 	model.set_weights(weight)
 
-	yp= model.predict(X_test)
-	# print(np.max(yp, axis=1))
 	scores = model.evaluate(X_test,Y_test)
-
 	print(scores) # [loss, binary_accuracy]
 
+	yp= model.predict(X_test)
+
+	y = (yp == yp.max(axis=1, keepdims=1)).astype(float)
+	print(yp[:8])
+	print(y[:8])
+	print(Y_test[:8])
+	print(precision_recall_fscore_support(y, Y_test, average='micro'))
+	print(_accuracy(yp,Y_test))
 
 
 
-def main(context_sz):
+def train(context_sz, save= 'models/baseline/baseline_War_1h_'):
 	# load data
 	_p = data_path+"model_input/baseNN/War"+str(context_sz)+"_train_"
 	X = io.mmread(_p+"X.mtx")
@@ -296,37 +304,54 @@ def main(context_sz):
 
 	opt = optimizers.SGD(lr = 0.01, decay = 1e-6, momentum=0.9,nesterov=True)
 
-	hidden_sz = [50,75,100,150,200,250,300,350,400]
-	best_score = np.inf
+	hidden_sz = np.random.randint(100,high=1000,size=10)
+	best_loss = np.inf
 	best_model = None
 	best_config = None
+	best_acc = 0.0
 	for h in hidden_sz:
 		model = build_base_model(h_sz = h)
 		model.compile(loss="hinge", optimizer=opt,metrics=['binary_accuracy'])
 		model.fit(X_train, Y_train, batch_size=32, verbose = 0)
 		scores = model.evaluate(X_dev, Y_dev)
-		print("\n>>> hz=%s, Scores = %s"%(h, scores))
+		y = model.predict(X_dev)
+		acc = _accuracy(y,Y_dev)
+		print("\n>>> hz=%s, Scores = %s, accuracy on dev= %s\n"%(h, scores,acc))
 		
-		if scores[0] < best_score: # compare loss
+		if acc > best_acc: # compare acc
 			best_model = model
 			best_config = (h,)
-			best_score = scores[0]
-	# save model
-	file = h5py.File('models/baseline_War'+str(context_sz)+'.h5py','w')
-	weight = best_model.get_weights()
-	for i in range(len(weight)):
-		file.create_dataset('weight'+str(i),data=weight[i])
-	file.close()
-	print("\nModel saved-- config = %s, scores[0] = %s" %(best_config, best_score))
+			best_loss = scores[0]
+			best_acc = acc
+	if save:
+		# save model
+		file = h5py.File(save+str(context_sz)+'.h5py','w')
+		weight = best_model.get_weights()
+		for i in range(len(weight)):
+			file.create_dataset('weight'+str(i),data=weight[i])
+		file.close()
+		print("\nModel saved-- config = %s, loss = %s, accuracy = %s" %(best_config, best_loss, best_acc))
+	
+	yp = best_model.predict(X_dev)
+	y = (yp == yp.max(axis=1, keepdims=1)).astype(float)
+	print(precision_recall_fscore_support(y, Y_dev, average='micro'))
+	print(_accuracy(yp, Y_dev))
+
+
+def _accuracy(Ypred, Y):
+	assert Ypred.shape == Y.shape
+	N = Y.shape[0]
+	numer=np.sum(np.argmax(Ypred,axis=1)==np.argmax(Y,axis=1))
+	return float(numer)/N
 
 
 
 
 if __name__ == '__main__':
-	# _get_seq2vec('War Crimes and Criminals',save = True)
-	# _get_data(ds=2,metrics = "Unigram", context_sz=4)
+	# _get_seq2vec('War Crimes and Criminals',save = True,content=False)
+	# _get_data(ds=1,metrics = "Unigram", context_sz=0)
 	# _get_importance('War Crimes and Criminals')
 
-	# train()
-	# main(4)
-	test(4,250)
+	# _train()
+	# train(0)
+	test(0,634)

@@ -38,8 +38,8 @@ class GNN(object):
         Wxc1 = _init_weight(NUM_CAND, Tx) 
         Wxc2 = _init_weight(Dx, K)
         bxc = np.zeros((NUM_CAND,K)) # X => context
-        Wyc1 = _init_weight(NUM_CAND, Dy) 
-        Wyc2 = _init_weight(1, K) # Y=> context
+        Wyc10 = _init_weight(NUM_CAND, Dy) 
+        Wyc20 = _init_weight(1, K) # Y=> context
     
         Wcands = np.random.uniform(-1,1,size=Dcand) # Ycand => score
         Wcs = np.random.uniform(-1,1,size=K)
@@ -49,41 +49,41 @@ class GNN(object):
       
         self.Wxc1 = theano.shared(Wxc1)
         self.Wxc2 = theano.shared(Wxc2)
-        self.Wyc1 = theano.shared(Wyc1)
-        self.Wyc2 = theano.shared(Wyc2)
+        self.Wyc10 = theano.shared(Wyc10)
+        self.Wyc20 = theano.shared(Wyc20) # initial values for recurrence
         self.bxc = theano.shared(bxc)
         self.Wcs = theano.shared(Wys)
         self.bcs = theano.shared(bys)
-
-        self.h0 = theano.shared(h0)
         ####################### End Initialize weights ######################
 
         self.params = [self.Wy1x, self.Wys, self.WYs,self.Wxcand, self.bxcand,self.bys,self.bYs]
 
         thX = T.fmatrix('X') # input one doc: (Tx, Dx)
         thY = T.fmatrix('Y') # output summary sentences: (Ty, Dy)
-        thYcand = T.fmatrix('Ycand') # represent the candidates. size (NUM_CAND, Dcand)
+        thYcand = T.fmatrix('Ycand') # represent the candidates. size (Tx, NUM_CAND, Dcand)
         
         ############## Recurrence ###############
-        def recurrence(self, Y_cand,Y_t1, X_i, Y_i): 
-            # return y(t), cost(t)
-            C_t = self.fn((self.Wxc1.dot(X_i)).dot(Wxc2) + (self.Wyc1.dot(Y_t1.T)).dot(Wyc2)) # (NUM_CAND, K)
+        def recurrence(Y_cand, Wyc1_t, Wyc2_t, Y_t1, X_i):  #order:sequences, prior result(s), non-sequences
+            # Y_cand:(NUM_CAND, D_cand). Y_t1:(Dy, ). X_i:(Tx, Dx).
+            C_t = self.fn((self.Wxc1.dot(X_i)).dot(self.Wxc2) + (Wyc1_t.dot(Y_t1.T)).dot(Wyc2_t)) # (NUM_CAND, K)
             score = self.Wcs.dot(C_t)+self.Wcands.dot(Y_cand) # size (NUM_CAND,)
             pred = T.argmax(score) # (Dy,)
-            c = T.switch( thY,
-                -T.mean((margin+score-T.sum(scores*(Y_i>0)))*(Y_i==0)), # hinge loss
-                0.0
-                )
-            return pred, c
-        
-        [preds, c], _ = theano.scan(
+            return Wyc1_t, Wyc2_t, pred, score
+
+        init_pred = T.zeros(NUM_CAND)
+        [Wyc1, Wyc2, preds, scores], _ = theano.scan(
             fn=recurrence,
-            outputs_info = [pred], # Initialization of Y_t0
+            outputs_info = [self.Wyc10, self.Wyc20, init_pred, None], # Initialization of Wyc, pred, score
             sequences=[thYcand],
             non_sequences = [thX,thY],
             n_steps=thX.shape[0], # Tx
         )
         ############# End Recurrence #############
+        for 
+        c = T.switch( thY,
+                -T.mean((margin+score-T.sum(scores*(Y_i>0)))*(Y_i==0)), # hinge loss
+                0.0
+                )
         
         cost = T.sum(c) # cost: sum over all sentences
         dgrads = T.grad(cost, self.params)
@@ -95,7 +95,7 @@ class GNN(object):
         ] # use momentum
         
         self.predict_op = theano.function(
-            inputs=[thX],
+            inputs=[thX, None, thYcand],
             outputs=[preds],
             allow_input_downcast=True,
         )
