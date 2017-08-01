@@ -14,6 +14,7 @@ if sys.version_info >= (3,0):
 
 from scipy import io
 from sklearn.metrics import precision_recall_fscore_support
+from sklearn.utils import shuffle
 from functools import reduce
 
 from old_baseline import _get_importance
@@ -274,11 +275,9 @@ def make_X(ds = 1, topic = 'War Crimes and Criminals', savedir = data_path+"mode
 	X = X[1:]
 	print("X.shape",X.shape)
 
-	np.save(savedir+"X",X)
+	np.save(savedir+"X"+str(ds),X)
 
 	return X
-
-
 
 
 def make_Y(ds = 1, topic = 'War Crimes and Criminals', savename = data_path+"model_input/FFNN/Y"):
@@ -314,7 +313,6 @@ def make_Y(ds = 1, topic = 'War Crimes and Criminals', savename = data_path+"mod
 		mask = np.array(indicies).astype(int)
 		y[mask] = 1	
 		Y = np.hstack((Y,y))
-		
 
 	Y = Y[1:]
 	if savename:
@@ -323,24 +321,34 @@ def make_Y(ds = 1, topic = 'War Crimes and Criminals', savename = data_path+"mod
 
 
 
-def load_data(filename):
-	# read X,Y, down sample to 1:1
-	_p=data_path+"model_input/FFNN/"
-	X = np.load(_p+"X.npy")
-	Y = np.load(_p+"Y.npy")
+def load_data(ds=1,dp=data_path+"model_input/FFNN/"):
+	# read X,Y
+	try:
+		X = np.load(dp+"X"+str(ds)+".npy")
+	except IOError:
+		print("X not generated...")
+	try:
+		Y = np.load(dp+"Y"+str(ds)+".npy")
+	except IOError:
+		print("Y not generated...")
+		
 	assert X.shape[0]==Y.shape[0],(X.shape, Y.shape)
-
+	# down sample
 	pos_id = np.nonzero(Y)[0]
-	# print(pos_id)
-	print("Y has %s pos label and %s neg label"%(len(pos_id),len(Y)-len(pos_id)))
+	neg_id = np.where(Y==0)[0]
+	print("Y has %s pos label and %s neg label"%(len(pos_id),len(neg_id)))
+	neg_sample_id = neg_id[np.random.choice(len(neg_id), len(pos_id), replace=False)]
+	Y_pos = Y[pos_id]
+	Y_neg = Y[neg_sample_id]
 	X_pos = X[pos_id]
-
-	# X_ = X_pos+X_neg
-	# Y_ = Y_pos+Y_neg
-	# X_,Y_ = shuffle(X_,Y_)
-	# return X_,Y_
-
-
+	X_neg = X[neg_sample_id]
+	
+	X_ = np.vstack((X_pos,X_neg))
+	Y_ = np.vstack((Y_pos[:,np.newaxis],Y_neg[:,np.newaxis]))
+	print("X.shape",X_.shape)
+	print("Y.shape",Y_.shape)
+	X_,Y_ = shuffle(X_,Y_)
+	return X_,Y_
 
 
 
@@ -355,42 +363,62 @@ def _accuracy(yp,Y):
 	return float(np.sum(yp==Y))/len(Y)
 
 
-
-def build_base_model(h_sz = [250], dim_in = 304, fn = ["relu",'sigmoid']):
+# binary classification
+def build_base_model( dim_in ,h_sz = [170,100], fn = ["sigmoid",'relu','sigmoid']):
 	assert len(h_sz)+1 == len(fn)
 	model = Sequential()
-	model.add(Dense(h_sz[0], activation = fn[0], input_shape = (dim_in,)))
+	model.add(Dense(h_sz[0], activation = fn[0], input_shape = (dim_in,))) # input layer
 	for i in range(1,len(h_sz)):
-		model.add(Dense(h_sz[i], activation = fn[i]))
-	model.add(Dense(1, activation = fn[1]))
-	model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
+		model.add(Dense(h_sz[i], activation = fn[i])) # hidden
+	model.add(Dense(1, activation = fn[-1])) # last layer
+	model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['binary_accuracy'])
 	return model
 
 
+def _save_model(model, savename):
+	pass
+
 
 def train():
-	_p = data_path+"FFNN/"
-	X,Y = load_data(_p)
+	_p = data_path+"model_input/FFNN/"
+	X,Y = load_data(ds=1,dp=_p)
+	N = len(X)
+	X_dev, X_train = X[:int(0.1*N)],X[int(0.1*N):]
+	Y_dev, Y_train = Y[:int(0.1*N)],Y[int(0.1*N):]
 
-	base_mode = build_base_model()
-	model.fit(X,Y)
-	
-	yp = model.predict(X_dev)
-	acc = _accuracy(yp,Y_dev)
-	precision, recall, f1, _ = precision_recall_fscore_support(yp,Y_dev)
-	print("Dev set--- Accuracy: %s, precision: %s, recall: %s, F1: %s."%(acc, precision, recall, f1))
-
-
-
-
-
-
+	h_sz1 = np.random.random_integers(low=100,high=1000,size=10)
+	h_sz2 = np.random.random_integers(low=100,high=1000,size=10)
+	best_loss = np.inf
+	best_mode = None
+	for h1,h2 in zip(h_sz1,h_sz2):
+		print("\n\n>> Trying hidden size [%s,%s] "%(h1,h2))
+		model = build_base_model(X.shape[1],h_sz = [h1,h2])
+		model.fit(X_train,Y_train,epochs=20,verbose=0)
+		score = model.evaluate(X_dev,Y_dev)
+		yp = model.predict(X_dev)
+		yp[np.where(yp>=0.5)]=1
+		yp[np.where(yp<0.5)]=0
+		# y_= model.predict(X_train)
+		# y_[np.where(y_>=0.5)]=1
+		# y_[np.where(y_<0.5)]=0
+		# print(yp[:5])
+		# print("Gold standard training set (length %s). %s 0s and %s 1s"%(len(X_train),len(np.where(Y_train==0)[0]),len(np.where(Y_train==1)[0])))
+		# print("Predicting on training set(length %s). %s 0s and %s 1s"%(len(X_train),len(np.where(y_==0)[0]),len(np.where(y_==1)[0])))
+		# print("Predicting on dev set(length %s). %s 0s and %s 1s"%(len(X_dev),len(np.where(yp==0)[0]),len(np.where(yp==1)[0])))
+		acc = _accuracy(yp,Y_dev)
+		precision, recall, f1, _ = precision_recall_fscore_support(yp,Y_dev)
+		print("On Dev set--- Accuracy: %s, precision: %s, recall: %s, F1: %s, loss:%s, binary_accuray:%s"%(acc, precision, recall, f1,score[0],score[1]))
+		if score[0]<best_loss:
+			best_model = model
+			best_loss = score[0]
+	print(best_model.summary())
 
 #######################################
 ############ Execution ################
 #######################################
 
 def test():
+	pass
 	# test select_article_into_summary
 	# savename = data_path+"model_input/FFNN/selected_sentences.json"
 	# with open(savename,'r') as f:
@@ -399,7 +427,7 @@ def test():
 
 	# test make Y
 	# _select_sentence(ds = 0)
-	# Y = make_Y(savename = None)
+	# Y = make_Y()
 	# print(Y.shape) # (32313,)
 
 	# X_source = _feat_source(ds = 1)
@@ -408,11 +436,11 @@ def test():
 	# _feat_cand_noninterac(ds = 1)
 	# X = make_X() # (32313,)
 
-	load_data()
+	# X,Y = load_data()
 	
 
 
 if __name__ == '__main__':
 
-	test()
-	# train()
+	# test()
+	train()
