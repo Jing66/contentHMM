@@ -1,19 +1,25 @@
-from keras.models import Sequential
-from keras.layers import Dense
-from keras import optimizers
-from keras.metrics import binary_accuracy as accuracy
 import numpy as np
 import json
 import pickle
 import math
-from scipy.sparse import dok_matrix
+import sys
+import os
+from collections import Counter
+if sys.version_info >= (3,0):
+	from keras.models import Sequential
+	from keras.layers import Dense
+	from keras import optimizers
+	from keras.metrics import binary_accuracy as accuracy
+	import h5py
+
 from scipy import io
-from utils import *
-import h5py
 from sklearn.metrics import precision_recall_fscore_support
 from functools import reduce
 
-_We_dim = 300
+from old_baseline import _get_importance
+sys.path.append(os.path.abspath('..'))
+from content_hmm import *
+
 
 EOD = "*EOD*"
 START_SENT = "**START_SENT**"
@@ -23,197 +29,318 @@ END_SENT = "**END_SENT**"
 data_path = "/home/ml/jliu164/code/data/"
 src_path = "/home/ml/jliu164/code/Summarization/"
 input_path = "/home/ml/jliu164/code/contentHMM_input/"
+_model_path = "/home/ml/jliu164/code/contentHMM_tagger/contents/"
 # input_path = data_path+"/seq_input/"
 NUM_CAND = 10
-_PAD_score = 0
 SKIP_SET = set([START_SENT, END_SENT,SOD, EOD])
 
 
+def _length_indicator(ds = 1, topic ='War Crimes and Criminals'):
+	# save an array to indicate length
+	doc,_ = pickle.load(open(input_path+"contents/"+topic+"/"+topic+str(ds)+".pkl","rb"))
+	ind = [len(d) for d in doc]
+	return np.array(ind)
 
-#################################################
-################### Get data ###################
-#################################################
-
-# save all sequence vectors as input. use word lemma. add_EOD: NOT omit punctuation/numbers
-def _get_seq2vec(topic, add_EOD = True, content = True, save = True):
-	with open("/home/ml/jliu164/code/data/we_file.json") as f:
-		We = json.load(f)
-		unk_vec = We["UNK"]
-	for i in range(3):
-		c = 0
-		_path = input_path+("contents/" if content else "summaries/")+topic+"/"+topic+str(i)+".pkl"
-		doc,_ = pickle.load(open(_path,"rb"))
-		if add_EOD:
-			doc_ = [i[-1].append(EOD) for i in doc]
-		sentences = [i for val in doc for i in val]
-		print("Will process %s sentences"%(len(sentences)))
-		
-		we_sents = np.zeros((1,_We_dim+2)) # last 2 numbers indicate position, if end of document
-		for sent in sentences:
-			eod = False
-			pos = 0.0 # flag for last sentence of document
-			vec_sent = np.zeros(_We_dim)
-			for w in sent:
-				if w in set([START_SENT, END_SENT,SOD]):
-					continue
-				if w == EOD:
-					eod = True
-				vec = np.array(We.get(w,unk_vec),dtype=np.float32)
-				vec_sent += vec
-			pos += 1
-			# assert np.all(vec_sent) != 0.0
-			if np.all(vec_sent) == 0:
-				print(sent)
-			vec_sent = np.hstack((vec_sent,np.array([float(pos)/len(sentences)])))
-			if eod:
-				vec_sent = np.hstack((vec_sent,np.array([1])))
-			else:
-				vec_sent=np.hstack((vec_sent,np.array([0])))
-			# print(vec_sent.reshape((-1,)).shape)
-			
-			we_sents = np.vstack((we_sents,vec_sent.reshape(-1,)))
-			c += 1
-		if save:
-			we_sents = we_sents[1:,...] # the first row was empty for initialization
-			_save = data_path+"model_input/baseNN/"+topic+str(i)+("_content" if content else "_summary")+"_sent&vec.npy"
-			np.save( _save, we_sents)
-		print("%s sentences"%(len(we_sents)))
-
-
-# read importance score for every sentence
-def _get_importance(topic, ds,context_sz):
-	filename = "pred/pred_M"+str(context_sz)+("_train" if ds==1 else "_test")+"_model.npy"
-	m = np.load(src_path+filename) # this is for each word! Need to convert into sentence importance score
-	docs,_ = pickle.load(open(input_path+"contents/"+topic+"/"+topic+str(ds)+".pkl","rb"))
-	N = sum([len(i) for i in docs])
-	print("converting m_w (%s) to M_sent (%s) " %(len(m), N)) # N: number of sentences
-	c_w = 0 # word index
-	c_s = 0 # sentence index
-	M = np.zeros((N,2))
-	for doc in docs:
-		for sentences in doc:
-			M_ij = [] # scores in one sentence
-			for word in sentences:
-				if word in SKIP_SET:
-					continue
-				M_ij.append(m[c_w])
-				c_w += 1
-			M_ij = np.array(M_ij)
-			M[c_s,:] = [np.mean(M_ij), np.max(M_ij)]
-			c_s += 1
-	assert len(M) == N, "# Sentence should match: %s from origin, %s from M."%(N,len(M))
-	return M
-	
-
-def _get_data(ds=1, topic ='War Crimes and Criminals' ,save_name = data_path+"model_input/baseNN/War", metrics = "Unigram", context_sz = 0):
-	"""
-	ds = 0: dev set, ds=1: train set, ds=2: test set
-	candidate set: the next NUM_CAND-1 sentences of x[i]
-	X: (#sentences, we_dim + avg(M) + max(M))
-	Y: scores, binary: (#sentences, #candidates). Y[i][j] = 1(sentence[j] in candidate[i] chosen as summary)
-	"""
-	X_saved = True
-	Y_saved = True
-	try:
-		X = io.mmread(save_name+str(context_sz)+("_train" if ds==1 else "_test")+"_X.mtx")
-	except IOError:
-		X_saved = False
-	try:
-		Y = io.mmread(save_name+str(context_sz)+("_train" if ds==1 else "_test")+"_Y.mtx")
-	except IOError:
-		Y_saved = False
-	if X_saved and Y_saved:
-		return X,Y
-
+# FIXED LENGTH
+def _select_sentence(ds=1, topic ='War Crimes and Criminals', savename = data_path+"model_input/FFNN/selected_sentences"):
+	# save a list of list. for each selected[i][k], kth sentence in article[i] is selected as summary
 	doc,_ = pickle.load(open(input_path+"contents/"+topic+"/"+topic+str(ds)+".pkl","rb"))
 	summary, _ = pickle.load(open(input_path+"summaries/"+topic+"/"+topic+str(ds)+".pkl","rb"))
 	assert len(doc) == len(summary), "More documents than summary!" if len(doc) > len(summary) else "Less documents than summary!"
 	
-	# doc = doc[:2]
-	# summary = summary[:2]
+	print("Getting selected sentences...")
+	selected = []
+	idx = 0
+	# print([len(s) for s in summary])
+	for d,s in zip(doc,summary):
+		uni_doc = [set(i) for i in d] 
+		uni_sum = [set(i) for i in s]
+		y = np.zeros(len(s)) # s[i] is most close to d[j]
+		for i in range(len(s)):
+			max_dist = np.inf
+			
+			for j in range(len(d)):
+				# Unigram cosine similarity
+				numer = len(uni_doc[j].intersection(uni_sum[i]))
+				denom = math.sqrt(len(uni_doc[j])*len(uni_sum[i]))
+				dist = 1- float(numer)/denom
 
-	print("total number of sentences: "+str(sum([len(i) for i in doc])))
-	if not Y_saved:
-		print("Getting Y...")
-		# get Y
-		Y = dok_matrix((sum([len(i) for i in doc]), NUM_CAND),dtype = np.int32)
-		idx = 0
-		if metrics == "Euclidean" or "Cosine":
-			with open("/home/ml/jliu164/code/data/we_file.json") as f:
-				We = json.load(f)
-				unk_vec = We["UNK"]
-		for d,s in zip(doc,summary):
-			print("*************************************")
-			print("Document has length %s; summary has length %s"%(len(d),len(s)))
-			uni_doc = [set(i) for i in d] 
-			uni_sum = [set(i) for i in s]
-			y = np.zeros(len(s)) # s[i] is most close to d[j]
-			for i in range(len(s)):
-				max_dist = np.inf
-				if metrics == "Euclidean" or "Cosine":
-					s_vec = reduce((lambda x,y: x+y),[np.array(We.get(w,unk_vec),dtype = np.float32) for w in s[i] if w not in SKIP_SET])
-				
-				for j in range(len(d)):
-					# Unigram cosine similarity
-					if metrics == "Unigram":
-						numer = len(uni_doc[j].intersection(uni_sum[i]))
-						denom = math.sqrt(len(uni_doc[j])*len(uni_sum[i]))
-						dist = 1- float(numer)/denom
-						
-					# Euclidean distance: doesn't really make sense, should consider `vector direction`
-					elif metrics == "Euclidean": 
-						d_vec = reduce((lambda x,y: x+y),[np.array(We.get(w,unk_vec),dtype = np.float32) for w in d[j] if w not in SKIP_SET])
-						dist = np.sum((s_vec - d_vec)**2)
-						print(dist)
+				if dist < max_dist:
+					y[i] = j
+					max_dist = dist
+					
+		# y = sorted(list(set(y))) # every sentence in summary is similar to a different sentence in doc
+		y = sorted(y)
+		assert len(y)!=0
+		selected.append(y)
+	# print([len(s) for s in selected])
+	assert len(selected) == len(summary)
+	if savename:
+		import json
+		with open(savename+str(ds)+'.json','w') as f:
+			json.dump(selected, f)
 
-					# Cosine by vectors
-					elif metrics == "Cosine":
-						d_vec = reduce((lambda x,y: x+y),[np.array(We.get(w,unk_vec),dtype = np.float32) for w in d[j] if w not in SKIP_SET])
-						numer = np.sum(s_vec * d_vec)
-						denom = np.sqrt(np.sum(s_vec**2) * np.sum(d_vec**2))
-						dist = 1 - numer/denom
 
-					if dist < max_dist:
-						y[i] = j
-						max_dist = dist
-						
-			y = sorted(list(set(y))) # every sentence in summary is similar to a different sentence in doc
-			# print(y)
-			c = 0
-			for k in range(max(0,int(y[0]-NUM_CAND)),int(y[-1])+1):
-				if int(y[c])-k < NUM_CAND: # only update the ones x[i] can reach
-					Y[idx+k,int(y[c])-k] = 1
-					# print("Updating [%s][%s]"%(k, int(y[c])-k))
-					if (y[c])-k == 0:
-						c+=1
-				if c == len(y):
-					break
-			idx += len(d)
-			# print(int(y[-1]+1), idx, idx - y[-1],c)
-			Y[int(y[-1]+1):idx,...] += np.full((1,NUM_CAND),_PAD_score) # rows after last sentence chosen: pad with -inf
-			# also pad empty candidates with -inf/NaN?
-		if save_name:
-			io.mmwrite(save_name+str(context_sz)+("_train" if ds==1 else "_test")+"_Y.mtx", Y)
 
-	if not X_saved:
-		print("Getting X...")
-		# get X
-		try:
-			fp= data_path+"model_input/baseNN/"+topic+str(ds)+"_content_sent&vec.npy"
-			X = np.load(fp) # sentence vectors
-			assert X.shape[0] == Y.shape[0], (X.shape, Y.shape)
-		except IOError:
-			print("Sequence vectors not available! "+fp)
-		M = _get_importance(topic,ds, context_sz)
-		X = np.hstack((X,M))
-		print(X.shape)
-		assert X.shape[0] == Y.shape[0], (X.shape, Y.shape)
 
-		if save_name:
-			io.mmwrite(save_name+str(context_sz)+("_train" if ds==1 else "_test")+"_X.mtx", X)
+
+def _feat_source(ds = 1, topic = 'War Crimes and Criminals'):
+	# feature of source articles. count clusters distributions for each article. 
+	# return X_source: (#articles, #clusters)
+	sources, _ = pickle.load(open(input_path+"contents/"+topic+"/"+topic+str(ds)+".pkl","rb"))
+	model = pickle.load(open(_model_path+topic+".pkl","rb"))
+	n_cluster = model._m
+	X_source = np.zeros((len(sources), n_cluster))
+	_,flat = model.viterbi(sources)
+	assert(len(flat) == sum([len(c) for c in sources]))
+	print("model._m = "+str(model._m))
+	idx = 0
+	for i in range(len(sources)):
+		doc = sources[i]
+		flat_ = flat[idx: idx+len(doc)]
+		flat_count = dict(Counter(flat_))
+		for c_id, c in flat_count.items():
+			X_source[i][c_id] = c
+		idx += len(doc)
+	return X_source
+
+
+def _feat_sum_sofar(ds = 1, topic = 'War Crimes and Criminals',savename = data_path+"model_input/FFNN/X_summary"):
+	# feature of summary so far. [topic distributions] + [#wordoverlap with source] + [position of last chosen sentence]. If no summary so far then set all to 0
+	# return X_sum: (#summary sentences, #clusters + 2)
+	summaries, _ = pickle.load(open(input_path+"summaries/"+topic+"/"+topic+str(ds)+".pkl","rb"))
+	sources, _ = pickle.load(open(input_path+"contents/"+topic+"/"+topic+str(ds)+".pkl","rb"))
+	model = pickle.load(open(_model_path+topic+".pkl","rb"))
+
+	# cluster distribution feature
+	_, flat = model.viterbi(summaries)
+	n_feat = 2 # #features other than clusters
+	X_ = np.zeros((sum([len(s)+1 for s in summaries]), model._m +n_feat))
+	print(X_.shape)
+
+	idx = 0
+	count = 0
+	for i in range(len(summaries)):
+		s = summaries[i]
+		flat_ = flat[idx: idx+len(s)]
+		flat_count = dict(Counter(flat_))
+		# repeat source content for all combination of summary (summary so far) [0 to len(s)]
+		for c_id, c in flat_count.items():
+			X_[count:count+len(s)+1, c_id] = c 
+		count += len(s)+1
+		idx += len(s)
 	
-	print("X, Y generated! location: "+str(save_name)+str(context_sz)+("_train" if ds==1 else "_test"))
-	return X,Y
+	# word overlap feature: summary sentence X source article
+	idx = 0
+	X_sum = np.zeros(X_.shape[0])
+	for source, summary in zip(sources, summaries):
+		for i in range(len(summary)+1):
+			sum_so_far = summary[:i]
+			uni_doc = [set(i) for i in source] 
+			uni_sum = [set(i) for i in sum_so_far]
+			if not uni_sum:
+				X_sum[idx] = 0 # no summary so far
+			else:
+				doc_set = reduce((lambda a,b: a.union(b)),uni_doc)
+				sum_set = reduce((lambda a,b: a.union(b)),uni_sum)
+				X_sum[idx] = len(doc_set.intersection(sum_set))
+			idx += 1
+	X_[...,model._m] = X_sum
+
+	# position feature: position of last chosen sentence. If no sentence chosen, index -1
+	p_selected = data_path+"model_input/FFNN/selected_sentences"+str(ds)+".json"
+	with open(p_selected,'r') as f:
+		selected_tot = json.load(f)
+	assert sum([len(s) for s in selected_tot]) == sum([len(s) for s in summaries])
+	s_inserted = [[-1]+s for s in selected_tot]
+	pos = [int(i) for val in s_inserted for i in val]
+	X_[...,model._m+1] = np.array(pos)
+
+	if savename:
+		np.save(savename+str(ds), X_)
+	return X_
+
+
+def _feat_cand_noninterac(ds = 1, topic = 'War Crimes and Criminals',savename = data_path+"model_input/FFNN/X_cand"):
+	# features that doesn't need interaction with source and summary so far. [M]+[emission/cluster_id from HMM] + [pos] + [tf-idf]
+	# return (#n_sentences in source, 14)
+	sources, _ = pickle.load(open(input_path+"contents/"+topic+"/"+topic+str(ds)+".pkl","rb"))
+	flat_sent =  [i for val in sources for i in val]
+	
+	n_feat = 14
+	X_ = np.zeros((len(flat_sent),n_feat))
+	print(X_.shape)
+	
+	# position feature
+	X_pos = np.zeros(X_.shape[0])
+	idx = 0
+	for doc in sources:
+		X_pos[idx:idx+len(doc)] = range(len(doc))
+		idx += len(doc)
+	X_[...,0] = X_pos
+	
+	# HMM feature (dim= model._m + 1)
+	model = pickle.load(open(_model_path+topic+".pkl","rb"))
+	_, flat = model.viterbi(sources)
+	X_hmm = np.zeros((X_.shape[0],model._m+1))
+	X_hmm[...,0] = np.array(flat) # cluster id
+	emis_prob = model.sent_logprob(flat_sent)
+	X_hmm[...,1:11] = emis_prob.T # sentence emission log probability
+	X_[...,1:12] = X_hmm
+
+	# importance score feature
+	context_sz = 4
+	M = _get_importance(topic, ds,context_sz)
+	print(M.shape)
+	X_[...,12:14] = M
+
+	# tf-idf score feature
+	#############################
+	# TO IMPLEMENTE--can only do max/avg without POS/NER here
+	#############################
+
+	if savename:
+		np.save(savename+str(ds), X_)
+	return X_
+
+
+def make_X(ds = 1, topic = 'War Crimes and Criminals', savedir = data_path+"model_input/FFNN/"):
+	# interaction between [source]+[summary_so_far]+[1 candidate out of NUM_CAND]. ADD [trans HMM prob]+[POS/NER overlap]
+	
+	# load components
+	X_source = _feat_source(ds=ds,topic=topic) #(#articles,...)
+	try:
+		X_summary = np.load(savedir+"X_summary"+str(ds)+".npy") # (summary sentences,...)
+	except IOError:
+		print("summary part not ready...generating...")
+		X_summary = _feat_sum_sofar(ds=ds,topic=topic)
+	try:
+		X_cand = np.load(savedir+"X_cand"+str(ds)+".npy")  #(#n_sentences in source,...)
+	except IOError:
+		print("candidate part not ready...generating...")
+		X_cand = _feat_cand_noninterac(ds=ds,topic=topic)
+	p_selected = data_path+"model_input/FFNN/selected_sentences"+str(ds)+".json"
+	with open(p_selected,'r') as f:
+		selected_tot = json.load(f)
+	len_ind = _length_indicator(ds=ds,topic=topic)
+	print(len_ind)
+
+	X = np.zeros(X_source.shape[1]+X_summary.shape[1]+X_cand.shape[1])
+	# match generated vectors
+	idx_sum = 0
+	idx_cand = 0
+	for idx_source in range(len(selected_tot)):
+		selected_idx = selected_tot[idx_source]
+		# locally reference vectors
+		source_vec = X_source[idx_source]
+		sum_vec = X_summary[idx_sum:idx_sum+len(selected_idx)+1]
+		cand_vec = X_cand[idx_cand: idx_cand+len_ind[idx_source]]
+		idx_sum += len(selected_idx)+1
+		idx_cand += len_ind[idx_source]
+		# before the first sentence getting selected as summary
+		if selected_idx[0] < NUM_CAND:
+			n_i = min(NUM_CAND,len_ind[idx_source])
+		else:
+			n_i = int(selected_idx[0]+1)
+		print("\n>>n = %s. selected idx:%s. first fill in %s rows."%(len_ind[idx_source],selected_idx, n_i))
+		tmp = np.hstack((source_vec,sum_vec[0]))[np.newaxis,:]
+		tmp = np.broadcast_to(tmp, (n_i, tmp.shape[1])) # (6,22)
+		x_prev = np.hstack((tmp,cand_vec[:n_i]))
+		# loop inside all indicies
+		for idx_ in range(len(selected_idx)-1):
+			cur_idx = selected_idx[idx_]
+			next_idx = selected_idx[idx_+1]
+			n_i = min(NUM_CAND+cur_idx+1, len_ind[idx_source]) - cur_idx -1 if next_idx<NUM_CAND+cur_idx else (next_idx-cur_idx)
+			
+			_sum_vec = sum_vec[idx_]
+			_cand_vec = cand_vec[int(cur_idx+1):int(cur_idx+n_i+1)]
+			print("selected idx:%s. next locally fill in rows[%s-%s)."%(cur_idx, cur_idx+1,cur_idx+n_i+1))
+			tmp = np.hstack((source_vec, _sum_vec))[np.newaxis,:]
+			tmp = np.broadcast_to(tmp, (_cand_vec.shape[0],tmp.shape[1])) #(5,22)
+			tmp_ = np.hstack((tmp,_cand_vec))
+			x_prev = np.vstack((x_prev, tmp_))
+			
+			#############################
+			# TODO: Implement overlap/transition prob
+			#############################
+		# Last row
+		n_i = min(NUM_CAND+selected_idx[-1]+1, len_ind[idx_source]) - selected_idx[-1] -1 
+		tmp = np.hstack((source_vec,sum_vec[-1]))[np.newaxis,:]
+		tmp = np.broadcast_to(tmp, (int(n_i), tmp.shape[1]))
+		tmp_ = np.hstack((tmp,cand_vec[int(selected_idx[-1]+1):int(selected_idx[-1]+1+n_i)]))
+		x_prev = np.vstack((x_prev, tmp_))
+
+		X = np.vstack((X,x_prev))
+	X = X[1:]
+	print("X.shape",X.shape)
+
+	np.save(savedir+"X",X)
+
+	return X
+
+
+
+
+def make_Y(ds = 1, topic = 'War Crimes and Criminals', savename = data_path+"model_input/FFNN/Y"):
+	# X: [source]+[summary_so_far]+[1 candidate out of NUM_CAND]. Y: 1(this candidate was selected)
+	len_ind = _length_indicator(ds=ds,topic=topic)
+	p_selected = data_path+"model_input/FFNN/selected_sentences"+str(ds)+".json"
+	with open(p_selected,'r') as f:
+		selected_tot = json.load(f)
+	assert selected_tot
+	
+	Y = np.zeros(1,dtype=int)
+	
+	for i in range(len(selected_tot)):
+		selected = np.array(selected_tot[i])
+		indicies = [selected[0]]
+		# first row
+		if selected[0] < NUM_CAND:
+			n_i = min(NUM_CAND,len_ind[i])
+		else:
+			n_i = selected[0]+1
+		print("\n >>Article length = %s, selected = %s, initial fill %s rows" %(len_ind[i], selected,n_i))
+		# middle rows
+		for j in range(len(selected)-1):
+			cur_idx = selected[j]
+			next_idx = selected[j+1]
+			indicies.append(n_i+next_idx-cur_idx-1)
+			n_i += min(NUM_CAND+cur_idx+1, len_ind[i]) - cur_idx -1 if next_idx<NUM_CAND+cur_idx else (next_idx-cur_idx)
+		# last row
+		n_i += min(NUM_CAND+selected[-1]+1, len_ind[i]) - selected[-1] -1
+		print("X_i has rows total %s, label index are %s"%(n_i, indicies))
+
+		y = np.zeros(int(n_i),dtype=np.int32)
+		mask = np.array(indicies).astype(int)
+		y[mask] = 1	
+		Y = np.hstack((Y,y))
+		
+
+	Y = Y[1:]
+	if savename:
+		np.save(savename+str(ds), Y)
+	return Y
+
+
+
+def load_data(filename):
+	# read X,Y, down sample to 1:1
+	_p=data_path+"model_input/FFNN/"
+	X = np.load(_p+"X.npy")
+	Y = np.load(_p+"Y.npy")
+	assert X.shape[0]==Y.shape[0],(X.shape, Y.shape)
+
+	pos_id = np.nonzero(Y)[0]
+	# print(pos_id)
+	print("Y has %s pos label and %s neg label"%(len(pos_id),len(Y)-len(pos_id)))
+	X_pos = X[pos_id]
+
+	# X_ = X_pos+X_neg
+	# Y_ = Y_pos+Y_neg
+	# X_,Y_ = shuffle(X_,Y_)
+	# return X_,Y_
+
+
 
 
 
@@ -221,137 +348,71 @@ def _get_data(ds=1, topic ='War Crimes and Criminals' ,save_name = data_path+"mo
 #################################################
 ############ Baseline Model #####################
 #################################################
-def build_base_model(h_sz = 250, dim_in = 304):
-	fn = ['tanh','softmax']
-	# fn = ["tanh","relu","linear"]
-	dim_out = 10
+
+
+def _accuracy(yp,Y):
+	assert len(yp) == len(Y)
+	return float(np.sum(yp==Y))/len(Y)
+
+
+
+def build_base_model(h_sz = [250], dim_in = 304, fn = ["relu",'sigmoid']):
+	assert len(h_sz)+1 == len(fn)
 	model = Sequential()
-	model.add(Dense(h_sz, activation = fn[0], input_shape = (dim_in,)))
-	# model.add(Dense(100,activation = fn[1]))
-	model.add(Dense(dim_out, activation = fn[1]))
+	model.add(Dense(h_sz[0], activation = fn[0], input_shape = (dim_in,)))
+	for i in range(1,len(h_sz)):
+		model.add(Dense(h_sz[i], activation = fn[i]))
+	model.add(Dense(1, activation = fn[1]))
+	model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
 	return model
 
 
 
-def _train():
-	_p = data_path+"model_input/baseNN/War0_train_"
-	X_train = io.mmread(_p+"X.mtx")
-	Y_train = io.mmread(_p+"Y.mtx").toarray()
-	print(X_train.shape)
-	print(Y_train.shape)
+def train():
+	_p = data_path+"FFNN/"
+	X,Y = load_data(_p)
 
-	# opt = optimizers.Adagrad()
-	opt = optimizers.SGD(lr = 0.01, decay = 1e-6, momentum=0.9,nesterov=True)
-	model = build_base_model(h_sz=700)
-	print(model.summary())
-	model.compile(loss="hinge", optimizer=opt,metrics=['binary_accuracy'])
-
-	hist = model.fit(X_train, Y_train,validation_split=0.15, batch_size=32)
-	# print(hist.history['val_acc'])
-	yp = model.predict(X_train)
-	y = (yp == yp.max(axis=1, keepdims=1)).astype(float)
-	print(yp[:10])
-	print(y[:10])
-	print(Y_train[:10])
-
-	scores = model.evaluate(X_train,Y_train)
-	print(scores) # [loss, binary_accuracy]
-
-
-def test(context_sz, config, save = 'models/baseline/baseline_War_1h_'):
-	_p = data_path+"model_input/baseNN/War"+str(context_sz)+"_test_"
-	X_test = io.mmread(_p+"X.mtx")
-	Y_test = io.mmread(_p+"Y.mtx").toarray()
-	print(X_test.shape)
-	print(Y_test.shape)
-	opt = optimizers.SGD(lr = 0.01, decay = 1e-6, momentum=0.9,nesterov=True)
-	# opt = optimizers.Adagrad()	
+	base_mode = build_base_model()
+	model.fit(X,Y)
 	
-	model = build_base_model(config)
-	print(model.summary())
-	model.compile(loss="hinge", optimizer=opt,metrics=['binary_accuracy'])
-
-	file=h5py.File(save+str(context_sz)+'.h5py','r')
-	weight = []
-	for i in range(len(file.keys())):
-		weight.append(file['weight'+str(i)][:])
-	model.set_weights(weight)
-
-	scores = model.evaluate(X_test,Y_test)
-	print(scores) # [loss, binary_accuracy]
-
-	yp= model.predict(X_test)
-
-	y = (yp == yp.max(axis=1, keepdims=1)).astype(float)
-	print(yp[:8])
-	print(y[:8])
-	print(Y_test[:8])
-	print(precision_recall_fscore_support(y, Y_test, average='micro'))
-	print(_accuracy(yp,Y_test))
+	yp = model.predict(X_dev)
+	acc = _accuracy(yp,Y_dev)
+	precision, recall, f1, _ = precision_recall_fscore_support(yp,Y_dev)
+	print("Dev set--- Accuracy: %s, precision: %s, recall: %s, F1: %s."%(acc, precision, recall, f1))
 
 
 
-def train(context_sz, save= 'models/baseline/baseline_War_1h_'):
-	# load data
-	_p = data_path+"model_input/baseNN/War"+str(context_sz)+"_train_"
-	X = io.mmread(_p+"X.mtx")
-	Y = io.mmread(_p+"Y.mtx").toarray()
-	N = len(X)
-	X_dev = X[:int(0.1*N)]
-	Y_dev = Y[:int(0.1*N)]
-	X_train = X[int(0.1*N):]
-	Y_train = Y[int(0.1*N):]
 
-	opt = optimizers.SGD(lr = 0.01, decay = 1e-6, momentum=0.9,nesterov=True)
 
-	hidden_sz = np.random.randint(100,high=1000,size=10)
-	best_loss = np.inf
-	best_model = None
-	best_config = None
-	best_acc = 0.0
-	for h in hidden_sz:
-		model = build_base_model(h_sz = h)
-		model.compile(loss="hinge", optimizer=opt,metrics=['binary_accuracy'])
-		model.fit(X_train, Y_train, batch_size=32, verbose = 0)
-		scores = model.evaluate(X_dev, Y_dev)
-		y = model.predict(X_dev)
-		acc = _accuracy(y,Y_dev)
-		print("\n>>> hz=%s, Scores = %s, accuracy on dev= %s\n"%(h, scores,acc))
-		
-		if acc > best_acc: # compare acc
-			best_model = model
-			best_config = (h,)
-			best_loss = scores[0]
-			best_acc = acc
-	if save:
-		# save model
-		file = h5py.File(save+str(context_sz)+'.h5py','w')
-		weight = best_model.get_weights()
-		for i in range(len(weight)):
-			file.create_dataset('weight'+str(i),data=weight[i])
-		file.close()
-		print("\nModel saved-- config = %s, loss = %s, accuracy = %s" %(best_config, best_loss, best_acc))
+
+
+#######################################
+############ Execution ################
+#######################################
+
+def test():
+	# test select_article_into_summary
+	# savename = data_path+"model_input/FFNN/selected_sentences.json"
+	# with open(savename,'r') as f:
+	# 	l = json.load(f)
+	# print(l[:5])
+
+	# test make Y
+	# _select_sentence(ds = 0)
+	# Y = make_Y(savename = None)
+	# print(Y.shape) # (32313,)
+
+	# X_source = _feat_source(ds = 1)
+	# print(X_source.shape)
+	# X_sum = _feat_sum_sofar(ds = 0)
+	# _feat_cand_noninterac(ds = 1)
+	# X = make_X() # (32313,)
+
+	load_data()
 	
-	yp = best_model.predict(X_dev)
-	y = (yp == yp.max(axis=1, keepdims=1)).astype(float)
-	print(precision_recall_fscore_support(y, Y_dev, average='micro'))
-	print(_accuracy(yp, Y_dev))
-
-
-def _accuracy(Ypred, Y):
-	assert Ypred.shape == Y.shape
-	N = Y.shape[0]
-	numer=np.sum(np.argmax(Ypred,axis=1)==np.argmax(Y,axis=1))
-	return float(numer)/N
-
-
 
 
 if __name__ == '__main__':
-	# _get_seq2vec('War Crimes and Criminals',save = True,content=False)
-	# _get_data(ds=1,metrics = "Unigram", context_sz=0)
-	# _get_importance('War Crimes and Criminals')
 
-	# _train()
-	# train(0)
-	test(0,634)
+	test()
+	# train()
