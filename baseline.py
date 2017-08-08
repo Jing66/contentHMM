@@ -15,6 +15,7 @@ if sys.version_info >= (3,0):
 from scipy import io
 from sklearn.metrics import precision_recall_fscore_support
 from sklearn.utils import shuffle
+from sklearn.decomposition import PCA
 from functools import reduce
 
 from old_baseline import _get_importance
@@ -321,34 +322,40 @@ def make_Y(ds = 1, topic = 'War Crimes and Criminals', savename = data_path+"mod
 
 
 
-def load_data(ds=1,dp=data_path+"model_input/FFNN/"):
+def load_data(ds=1,dp=data_path+"model_input/FFNN/", downsample = True):
 	# read X,Y
 	try:
 		X = np.load(dp+"X"+str(ds)+".npy")
+		
 	except IOError:
 		print("X not generated...")
+		X = make_X(ds=ds)
 	try:
 		Y = np.load(dp+"Y"+str(ds)+".npy")
 	except IOError:
 		print("Y not generated...")
+		Y = make_Y(ds=ds)
 		
 	assert X.shape[0]==Y.shape[0],(X.shape, Y.shape)
-	# down sample
-	pos_id = np.nonzero(Y)[0]
-	neg_id = np.where(Y==0)[0]
-	print("Y has %s pos label and %s neg label"%(len(pos_id),len(neg_id)))
-	neg_sample_id = neg_id[np.random.choice(len(neg_id), len(pos_id), replace=False)]
-	Y_pos = Y[pos_id]
-	Y_neg = Y[neg_sample_id]
-	X_pos = X[pos_id]
-	X_neg = X[neg_sample_id]
-	
-	X_ = np.vstack((X_pos,X_neg))
-	Y_ = np.vstack((Y_pos[:,np.newaxis],Y_neg[:,np.newaxis]))
-	print("X.shape",X_.shape)
-	print("Y.shape",Y_.shape)
-	X_,Y_ = shuffle(X_,Y_)
-	return X_,Y_
+	if downsample:
+		# down sample
+		pos_id = np.nonzero(Y)[0]
+		neg_id = np.where(Y==0)[0]
+		print("Y has %s pos label and %s neg label"%(len(pos_id),len(neg_id)))
+		neg_sample_id = neg_id[np.random.choice(len(neg_id), len(pos_id), replace=False)]
+		Y_pos = Y[pos_id]
+		Y_neg = Y[neg_sample_id]
+		X_pos = X[pos_id]
+		X_neg = X[neg_sample_id]
+		
+		X_ = np.vstack((X_pos,X_neg))
+		Y_ = np.vstack((Y_pos[:,np.newaxis],Y_neg[:,np.newaxis]))
+		X_,Y_ = shuffle(X_,Y_)
+		return X_,Y_
+	else:
+		Y = Y.reshape((-1,1))
+		X,Y = shuffle(X,Y)
+		return X,Y
 
 
 
@@ -360,6 +367,11 @@ def load_data(ds=1,dp=data_path+"model_input/FFNN/"):
 
 def _accuracy(yp,Y):
 	assert len(yp) == len(Y)
+	print("\nyp.shape",yp.shape)
+	print("Y.shape",Y.shape)
+	print("yp==Y.shape",(yp==Y).shape)
+	print(yp==Y[:3])
+	print("%s samples, %s correct"%(len(yp), np.sum(yp==Y)))
 	return float(np.sum(yp==Y))/len(Y)
 
 
@@ -375,23 +387,43 @@ def build_base_model( dim_in ,h_sz = [170,100], fn = ["sigmoid",'relu','sigmoid'
 	return model
 
 
-def _save_model(model, savename):
-	pass
+def save(model, savename):
+	# save model
+    file = h5py.File(savename+'.h5py','w')
+    weight = model.get_weights()
+    for i in range(len(weight)):
+            file.create_dataset('weight'+str(i),data=weight[i])
+    file.close()
 
+def load(model,savename):
+	# load and set model
+	file=h5py.File(savename+'.h5py','r')
+	weight = []
+	for i in range(len(file.keys())):
+		weight.append(file['weight'+str(i)][:])
+	model.set_weights(weight)
+	return model
 
-def train():
+def train(savename = "models/bi_classif_War"):
 	_p = data_path+"model_input/FFNN/"
-	X,Y = load_data(ds=1,dp=_p)
+	X,Y = load_data(ds=1,dp=_p,downsample=False)
+	print("X.shape",X.shape)
+	print("Y.shape",Y.shape)
+
+	# pca = PCA(n_components = 35)
+	# X = pca.fit_transform(X) # doesn't seem to matter
 	N = len(X)
 	X_dev, X_train = X[:int(0.1*N)],X[int(0.1*N):]
 	Y_dev, Y_train = Y[:int(0.1*N)],Y[int(0.1*N):]
 
-	h_sz1 = np.random.random_integers(low=100,high=1000,size=10)
-	h_sz2 = np.random.random_integers(low=100,high=1000,size=10)
+	h_sz1 = np.random.random_integers(low=200,high=2500,size=10)
+	h_sz2 = np.random.random_integers(low=500,high=1500,size=10)
 	best_loss = np.inf
 	best_mode = None
+	results = None
+	best_config = None
 	for h1,h2 in zip(h_sz1,h_sz2):
-		print("\n\n>> Trying hidden size [%s,%s] "%(h1,h2))
+		print("\n>> Trying hidden size [%s,%s] "%(h1,h2))
 		model = build_base_model(X.shape[1],h_sz = [h1,h2])
 		model.fit(X_train,Y_train,epochs=20,verbose=0)
 		score = model.evaluate(X_dev,Y_dev)
@@ -407,18 +439,41 @@ def train():
 		# print("Predicting on dev set(length %s). %s 0s and %s 1s"%(len(X_dev),len(np.where(yp==0)[0]),len(np.where(yp==1)[0])))
 		acc = _accuracy(yp,Y_dev)
 		precision, recall, f1, _ = precision_recall_fscore_support(yp,Y_dev)
-		print("On Dev set--- Accuracy: %s, precision: %s, recall: %s, F1: %s, loss:%s, binary_accuray:%s"%(acc, precision, recall, f1,score[0],score[1]))
+		print("\nOn Dev set--- Accuracy: %s, precision: %s, recall: %s, F1: %s, loss:%s, binary_accuray:%s"%(acc, precision, recall, f1,score[0],score[1]))
 		if score[0]<best_loss:
 			best_model = model
 			best_loss = score[0]
-	print(best_model.summary())
+			results = (acc,precision,recall,f1)
+			best_config = (h1,h2)
+
+	print("\n###Best Model results -- Accuracy: %s, precision: %s, recall: %s, F1: %s, loss:%s"%(results[0],results[1],results[2],results[3],best_loss))
+	print("###Best model config: "+str(best_config))
+
+	if savename:
+		save(best_model,savename)
+	test_model(model=best_model)
+
+
+def test_model(model=None,savename = "models/bi_classif_War",dim_in = 306,h_sz = None):
+	if not model:
+		model = build_base_model(dim_in,h_sz)
+		load(model,savename)
+	X,Y = load_data(ds=2)
+	score = model.evaluate(X,Y)
+
+	yp = model.predict(X)
+	yp[np.where(yp>=0.5)]=1
+	yp[np.where(yp<0.5)]=0
+	acc = _accuracy(yp,Y)
+	precision, recall, f1, _ = precision_recall_fscore_support(yp,Y)
+	print("\n>> Test results -- Accuracy: %s, precision: %s, recall: %s, F1: %s, loss:%s, binary_accuray:%s"%(acc, precision, recall, f1,score[0],score[1]))
 
 #######################################
 ############ Execution ################
 #######################################
 
 def test():
-	pass
+	
 	# test select_article_into_summary
 	# savename = data_path+"model_input/FFNN/selected_sentences.json"
 	# with open(savename,'r') as f:
@@ -436,11 +491,18 @@ def test():
 	# _feat_cand_noninterac(ds = 1)
 	# X = make_X() # (32313,)
 
-	# X,Y = load_data()
+	X,Y = load_data()
+	pca = PCA(n_components = 35)
+	X_ = pca.fit_transform(X)
+	print(X_.shape)
+	cov = pca.get_covariance()
+	print(cov.shape)
 	
 
 
 if __name__ == '__main__':
-
 	# test()
-	train()
+	train(savename = None)
+
+
+
