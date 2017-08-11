@@ -11,22 +11,29 @@ if sys.version_info >= (3,0):
 	from keras import optimizers
 	from keras.metrics import binary_accuracy as accuracy
 	import h5py
-
+	from sklearn.metrics import precision_recall_fscore_support
+	from sklearn.utils import shuffle
+	from sklearn.feature_selection import mutual_info_classif
+	from sklearn.feature_selection import SelectKBest
 from scipy import io
-from sklearn.metrics import precision_recall_fscore_support
-from sklearn.utils import shuffle
-from sklearn.decomposition import PCA
 from functools import reduce
+from adasyn import ADASYN
 
 from old_baseline import _get_importance
 sys.path.append(os.path.abspath('..'))
 from content_hmm import *
 
 
-EOD = "*EOD*"
+EOD = "*EOD*" # predict the end
 START_SENT = "**START_SENT**"
 SOD = "**START_DOC**"
 END_SENT = "**END_SENT**"
+
+FEAT2COL = {"src_cluster":(0,10),"src_se":(10,310),
+	"sum_cluster":(310,320),"sum_overlap":(320,321),"sum_pos":(321,322),"sum_num":(322,323),"sum_se":(323,623),
+	"cand_pos":(623,624),"cand_cluid":(624,625),"cand_prob":(625,635),"cand_M":(635,637),"cand_se":(637,937),
+	"interac_trans":(937,938),"interac_sim":(938,939),"interac_pos":(939,940),"interac_overlap":(940,942),"interac_emis":(942,962)}
+CATE_FEAT = {"sum_overlap","sum_pos","sum_num","cand_pos","cand_cluid","interac_pos","interac_overlap"} # cannot normalize
 
 data_path = "/home/ml/jliu164/code/data/"
 src_path = "/home/ml/jliu164/code/Summarization/"
@@ -35,7 +42,7 @@ _model_path = "/home/ml/jliu164/code/contentHMM_tagger/contents/"
 # input_path = data_path+"/seq_input/"
 NUM_CAND = 10
 SKIP_SET = set([START_SENT, END_SENT,SOD, EOD])
-
+np.random.seed(7)
 
 def _length_indicator(ds = 1, topic ='War Crimes and Criminals'):
 	# save an array to indicate length
@@ -53,7 +60,6 @@ def _select_sentence(ds=1, topic ='War Crimes and Criminals', savename = data_pa
 	print("Getting selected sentences...")
 	selected = []
 	idx = 0
-	# print([len(s) for s in summary])
 	for d,s in zip(doc,summary):
 		uni_doc = [set(i) for i in d] 
 		uni_sum = [set(i) for i in s]
@@ -63,58 +69,109 @@ def _select_sentence(ds=1, topic ='War Crimes and Criminals', savename = data_pa
 			
 			for j in range(len(d)):
 				# Unigram cosine similarity
-				numer = len(uni_doc[j].intersection(uni_sum[i]))
-				denom = math.sqrt(len(uni_doc[j])*len(uni_sum[i]))
-				dist = 1- float(numer)/denom
+				numer = len(uni_doc[j].intersection(uni_sum[i]))-2
+				denom = math.sqrt((len(uni_doc[j])-2)*(len(uni_sum[i])-2))
+				dist = 1- float(numer)/denom # omit start/end of sentence
 
 				if dist < max_dist:
 					y[i] = j
 					max_dist = dist
-					
+				
 		# y = sorted(list(set(y))) # every sentence in summary is similar to a different sentence in doc
 		y = sorted(y)
+		
 		assert len(y)!=0
+		assert np.max(y)<=len(d)
 		selected.append(y)
-	# print([len(s) for s in selected])
 	assert len(selected) == len(summary)
 	print("selected summary sentences for %s articles"%(len(selected)))
+	y = selected[0]
+	
 	if savename:
 		import json
 		with open(savename+str(ds)+'.json','w') as f:
 			json.dump(selected, f)
 
-
-
+def _seq2vec(content, ds =1, topic = 'War Crimes and Criminals', savedir = data_path+"model_input/FFNN/"):
+	## generate all sequence vectors as input. We(sentence) = avg(We(words))
+	# content: if true, process for content words. otherwise process for summaries
+	with open("/home/ml/jliu164/code/data/we_file.json") as f:
+		We = json.load(f)
+		unk_vec = We["UNK"]	
+	_We_dim = len(unk_vec)
+	_path = input_path+("contents/" if content else "summaries/")+topic+"/"+topic+str(ds)+".pkl"
+	doc,_ = pickle.load(open(_path,"rb"))
+		
+	sentences = [i for val in doc for i in val]
+	print("Will process %s sentences. ds=%s, for content = %s"%(len(sentences),ds,content))
+		
+	we_sents = np.zeros((len(sentences),_We_dim))
+	c=0
+	for sent in sentences:
+		pos = 0
+		vec_sent = np.zeros(_We_dim)
+		for w in sent:
+			if w in set([START_SENT, END_SENT,SOD]):
+				continue
+			
+			vec = np.array(We.get(w,unk_vec),dtype=np.float32)
+			vec_sent += vec
+			pos += 1
+		
+		# assert np.all(vec_sent) != 0.0
+		if np.all(vec_sent) == 0:
+			print(sent)
+		vec_sent = vec_sent/pos
+		we_sents[c,...] = vec_sent
+		c+=1
+	print("sequence vector shape",we_sents.shape)
+	_save = savedir+("content" if content else "summary")+"X_SeqVec"+str(ds)
+	np.save(_save,we_sents)
+	return we_sents
+	
 
 def _feat_source(ds = 1, topic = 'War Crimes and Criminals'):
-	# feature of source articles. count clusters distributions for each article. 
-	# return X_source: (#articles, #clusters)
+	## feature of source articles. count clusters distributions for each article. 
+	## return X_source: (#articles, #clusters)
 	sources, _ = pickle.load(open(input_path+"contents/"+topic+"/"+topic+str(ds)+".pkl","rb"))
 	model = pickle.load(open(_model_path+topic+".pkl","rb"))
+	## load sequence embeddings
+	_seqdir = data_path+"model_input/FFNN/"+"contentX_SeqVec"+str(ds)+".npy"
+	x_seq = np.load(_seqdir)
+
 	n_cluster = model._m
-	X_source = np.zeros((len(sources), n_cluster))
+	n_dim = x_seq.shape[1]
+	X_source = np.zeros((len(sources), n_cluster+n_dim))
 	_,flat = model.viterbi(sources)
 	assert(len(flat) == sum([len(c) for c in sources]))
 	print("model._m = "+str(model._m))
 	idx = 0
 	for i in range(len(sources)):
 		doc = sources[i]
+		x_seq_= x_seq[idx:idx+len(doc)]
+		X_seq = np.mean(x_seq,axis=0)
+
 		flat_ = flat[idx: idx+len(doc)]
 		flat_count = dict(Counter(flat_))
 		for c_id, c in flat_count.items():
 			X_source[i][c_id] = c
+		X_source[i][-n_dim:]=X_seq
 		idx += len(doc)
+	
 	return X_source
 
 
 def _feat_sum_sofar(ds = 1, topic = 'War Crimes and Criminals',savename = data_path+"model_input/FFNN/X_summary"):
-	# feature of summary so far. [topic distributions] + [#word overlap with source] + [position of last chosen sentence]. If no summary so far then set all to -1
+	# feature of summary so far. [topic distributions] + [#word overlap with source] + [position/bin of last chosen sentence]. If no summary so far then set all to -1
 	# return X_sum: (#summary sentences, #clusters + 2)
 	summaries, _ = pickle.load(open(input_path+"summaries/"+topic+"/"+topic+str(ds)+".pkl","rb"))
 	sources, _ = pickle.load(open(input_path+"contents/"+topic+"/"+topic+str(ds)+".pkl","rb"))
 	model = pickle.load(open(_model_path+topic+".pkl","rb"))
+	# sources = sources[:5]
+	# summaries = summaries[:5]
 
-	n_feat = 3 # num_features other than clusters
+	n_feat = 4 # num_features other than clusters or embeddings
+	n_bin = 5 # number of buckets
 	X_ = np.zeros((sum([len(s)+1 for s in summaries]), model._m +n_feat)) #shape (#sentences, #clusters)
 	
 	## feat: cluster distribution feature
@@ -152,10 +209,19 @@ def _feat_sum_sofar(ds = 1, topic = 'War Crimes and Criminals',savename = data_p
 	p_selected = data_path+"model_input/FFNN/selected_sentences"+str(ds)+".json"
 	with open(p_selected,'r') as f:
 		selected_tot = json.load(f)
-	assert sum([len(s) for s in selected_tot]) == sum([len(s) for s in summaries])
+	# assert sum([len(s) for s in selected_tot]) == sum([len(s) for s in summaries])
 	s_inserted = [[-1]+s for s in selected_tot]
 	pos = [int(i) for val in s_inserted for i in val]
 	X_[...,model._m+1] = np.array(pos)
+	## ADD feat: bin of previous position. Total n_bin buckets. first one always 0, the rest index start at 1.
+	x_bins = np.zeros(X_.shape[0])
+	idx = 0
+	for i,s in enumerate(sources):
+		bins = np.arange(-1,len(s)+1,float(len(s))/n_bin)
+		x_bin = np.digitize(np.array([-1]+selected_tot[i]),bins)
+		x_bin[0] = 0
+		x_bins[idx:idx+1+len(summaries[i])]=x_bin
+	X_[...,model._m+2] = np.array(x_bins)
 
 	## feat: number of Summaries chosen so far
 	x = np.zeros(X_.shape[0])
@@ -165,6 +231,17 @@ def _feat_sum_sofar(ds = 1, topic = 'War Crimes and Criminals',savename = data_p
 		idx += len(s)+1
 	X_[...,-1] = x
 
+	## load sequence embeddings
+	_seqdir = data_path+"model_input/FFNN/"+"summaryX_SeqVec"+str(ds)+".npy"
+	x_seq = np.load(_seqdir)
+	X_seq = np.zeros((X_.shape[0],x_seq.shape[1]))
+	idx_seq = 0
+	idx_x = 0
+	for s in summaries:
+		X_seq[idx_x+1:idx_x+len(s)+1,...] = x_seq[idx_seq:idx_seq+len(s),...]
+		idx_x += len(s)+1
+		idx_seq += len(s)
+	X_ = np.hstack((X_,X_seq))
 	if savename:
 		np.save(savename+str(ds), X_)
 	return X_
@@ -175,10 +252,13 @@ def _feat_cand_noninterac(ds = 1, topic = 'War Crimes and Criminals',savename = 
 	# return (#n_sentences in source, 14)
 	sources, _ = pickle.load(open(input_path+"contents/"+topic+"/"+topic+str(ds)+".pkl","rb"))
 	flat_sent =  [i for val in sources for i in val]
-	
+	_seqdir = data_path+"model_input/FFNN/"+"contentX_SeqVec"+str(ds)+".npy"
+	x_seq = np.load(_seqdir)
+
 	n_feat = 14
-	X_ = np.zeros((len(flat_sent),n_feat))
+	X_ = np.zeros((len(flat_sent),n_feat+x_seq.shape[1]))
 	print("_feat_cand_noninterac: X_.shape",X_.shape)
+	print("x_seq.shape",x_seq.shape)
 	
 	# position feature
 	X_pos = np.zeros(X_.shape[0])
@@ -188,7 +268,7 @@ def _feat_cand_noninterac(ds = 1, topic = 'War Crimes and Criminals',savename = 
 		idx += len(doc)
 	X_[...,0] = X_pos
 	
-	# HMM feature (dim= model._m + 1)
+	## HMM feature (dim= model._m + 1)
 	model = pickle.load(open(_model_path+topic+".pkl","rb"))
 	_, flat = model.viterbi(sources)
 	X_hmm = np.zeros((X_.shape[0],model._m+1))
@@ -197,13 +277,16 @@ def _feat_cand_noninterac(ds = 1, topic = 'War Crimes and Criminals',savename = 
 	X_hmm[...,1:11] = emis_prob.T # sentence emission log probability
 	X_[...,1:12] = X_hmm
 
-	# importance score feature
+	## importance score feature
 	context_sz = 4
 	M = _get_importance(topic, ds,context_sz)
 	print("Importance score shape", M.shape)
 	X_[...,12:14] = M
 
-	# tf-idf score feature
+	## sequence embeddings feature at the end
+	X_[...,n_feat:] = x_seq
+
+	## tf-idf score feature
 	#############################
 	# TO IMPLEMENTE--can only do max/avg without POS/NER here
 	#############################
@@ -223,13 +306,12 @@ def make_X(ds = 1, topic = 'War Crimes and Criminals', savedir = data_path+"mode
 		X_summary = np.load(savedir+"X_summary"+str(ds)+".npy") # (summary sentences,...)
 	except IOError:
 		print("summary part not ready...generating...")
-		X_summary = _feat_sum_sofar(ds=ds,topic=topic)
+		
 	print("X_summary.shape",X_summary.shape)
 	try:
 		X_cand = np.load(savedir+"X_cand"+str(ds)+".npy")  #(#n_sentences in source,...)
 	except IOError:
 		print("candidate part not ready...generating...")
-		X_cand = _feat_cand_noninterac(ds=ds,topic=topic)
 	print("X_candidate.shape",X_cand.shape)
 	# exit(0)
 	p_selected = data_path+"model_input/FFNN/selected_sentences"+str(ds)+".json"
@@ -342,11 +424,46 @@ def make_Y(ds = 1, topic = 'War Crimes and Criminals', savename = data_path+"mod
 
 
 
-def load_data(ds=1,dp=data_path+"model_input/FFNN/", downsample = True):
+def feat_select(X,Y, rm,normalize=True, n_feat=None):
+	## select features
+	## Removing features by me
+	
+	t = [FEAT2COL[s] for s in rm]
+	col_minus = [t[1]-t[0] for t in t]
+	if col_minus:
+		n_col = X.shape[1]- reduce(lambda x, y: x+y, col_minus)
+	else:
+		n_col = X.shape[1]
+	X_ = np.zeros((X.shape[0],n_col))
+	idx = 0
+	for feat in FEAT2COL:
+		if feat in rm:
+			continue
+		start,stop = FEAT2COL[feat]
+		x =X[...,start:stop]
+		if normalize and feat not in CATE_FEAT:
+			X_[...,idx:idx+(stop-start)] = (x-np.mean(x,axis=0))/np.std(x,axis=0)
+			
+		else:
+			X_[...,idx:idx+(stop-start)]=x
+		idx += (stop-start)
+	else:
+		X_ = X
+
+	## mutual information feature selection
+	if n_feat:
+		X_ = SelectKBest(mutual_info_classif, k=n_feat).fit_transform(X_, Y.ravel())
+	## Removing features with low variance
+	# from sklearn.feature_selection import VarianceThreshold
+	# sel = VarianceThreshold(threshold=(.5 * (1 - .5)))
+	# X = sel.fit_transform(X_)
+	return X_
+
+
+def load_data(normalize, ds=1,dp=data_path+"model_input/FFNN/", downsample = True, rm = set(),n_feat = None):
 	# read X,Y
 	try:
 		X = np.load(dp+"X"+str(ds)+".npy")
-		
 	except IOError:
 		print("X not generated...")
 		X = make_X(ds=ds)
@@ -369,124 +486,20 @@ def load_data(ds=1,dp=data_path+"model_input/FFNN/", downsample = True):
 		X_pos = X[pos_id]
 		X_neg = X[neg_sample_id]
 		
-		X_ = np.vstack((X_pos,X_neg))
-		Y_ = np.vstack((Y_pos[:,np.newaxis],Y_neg[:,np.newaxis]))
-		X_,Y_ = shuffle(X_,Y_)
-		return X_,Y_
-	else:
-		Y = Y.reshape((-1,1))
-		X,Y = shuffle(X,Y)
-		return X,Y
-
-
-
-
-#################################################
-############ Baseline Model #####################
-#################################################
-
-
-def _accuracy(yp,Y):
-	assert len(yp) == len(Y)
-	return float(np.sum(yp==Y))/len(Y)
-
-
-# binary classification
-def build_base_model( dim_in ,h_sz = [170,100], fn = ["sigmoid",'relu','sigmoid']):
-	assert len(h_sz)+1 == len(fn)
-	model = Sequential()
-	model.add(Dense(h_sz[0], activation = fn[0], input_shape = (dim_in,))) # input layer
-	#model.add(Dropout(0.2))
-	for i in range(1,len(h_sz)):
-		model.add(Dense(h_sz[i], activation = fn[i])) # hidden
-	model.add(Dense(1, activation = fn[-1])) # last layer
-	model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['binary_accuracy'])
-	return model
-
-
-def save(model, savename):
-	# save model
-    file = h5py.File(savename+'.h5py','w')
-    weight = model.get_weights()
-    for i in range(len(weight)):
-            file.create_dataset('weight'+str(i),data=weight[i])
-    file.close()
-
-def load(model,savename):
-	# load and set model
-	file=h5py.File(savename+'.h5py','r')
-	weight = []
-	for i in range(len(file.keys())):
-		weight.append(file['weight'+str(i)][:])
-	model.set_weights(weight)
-	return model
-
-def train(savename = "models/bi_classif_War", downsample = True):
-	_p = data_path+"model_input/FFNN/"
-	X,Y = load_data(ds=1,dp=_p,downsample=downsample)
-	print("X.shape",X.shape)
-	print("Y.shape",Y.shape)
-	# exit(0)
-	pos_id = np.nonzero(Y)[0]
-	neg_id = np.where(Y==0)[0]
-	print("Y has %s pos label and %s neg label"%(len(pos_id),len(neg_id)))
-	# pca = PCA(n_components = 35)
-	print("Downsample = %s"%(downsample))
-	# X = pca.fit_transform(X) # doesn't seem to matter
-	N = len(X)
-	X_dev, X_train = X[:int(0.1*N)],X[int(0.1*N):]
-	Y_dev, Y_train = Y[:int(0.1*N)],Y[int(0.1*N):]
-	pos_id = np.nonzero(Y_dev)[0]
-	neg_id = np.where(Y_dev==0)[0]
-	print("Y_dev has %s pos label and %s neg label"%(len(pos_id),len(neg_id)))
-	h_sz1 = np.random.random_integers(low=200,high=2500,size=10)
-	h_sz2 = np.random.random_integers(low=500,high=1500,size=10)
-	best_loss = np.inf
-	best_mode = None
-	results = None
-	best_config = None
-	for h1,h2 in zip(h_sz1,h_sz2):
-		print("\n>> Trying hidden size [%s,%s] "%(h1,h2))
-		model = build_base_model(X.shape[1],h_sz = [h1,h2])
-		model.fit(X_train,Y_train,epochs=20,verbose=0)
-		score = model.evaluate(X_dev,Y_dev)
-		yp = model.predict(X_dev)
-		yp[np.where(yp>=0.5)]=1
-		yp[np.where(yp<0.5)]=0
+		X = np.vstack((X_pos,X_neg))
+		Y = np.vstack((Y_pos[:,np.newaxis],Y_neg[:,np.newaxis]))
 		
-		acc = _accuracy(yp,Y_dev)
-		precision, recall, f1, _ = precision_recall_fscore_support(yp,Y_dev)
-		print("\nOn Dev set--- Accuracy: %s, precision: %s, recall: %s, F1: %s, loss:%s, binary_accuray:%s"%(acc, precision, recall, f1,score[0],score[1]))
-		if score[0]<best_loss:
-			best_model = model
-			best_loss = score[0]
-			results = (acc,precision,recall,f1)
-			best_config = (h1,h2)
-	print("\n\n\n###############")
-	print("Best Model results -- Accuracy: %s, precision: %s, recall: %s, F1: %s, loss:%s"%(results[0],results[1],results[2],results[3],best_loss))
-	print("Best model config: "+str(best_config))
+		
+	else:
+		# adasyn sampling
+		# adsn = ADASYN(k=5,imb_threshold=0.9, ratio=0.75)
+		# new_X, new_y = adsn.fit_transform(X,Y.flatten())
+		Y = Y.reshape((-1,1))
+	X,Y = shuffle(X,Y)
+	X  = feat_select(X,Y,rm, normalize=normalize,n_feat = n_feat)
+	
+	return X,Y
 
-	if savename:
-		save(best_model,savename)
-	test_model(downsample, model=best_model)
-
-
-def test_model(downsample, model=None,savename = "models/bi_classif_War",dim_in = 306,h_sz = None):
-	if not model:
-		model = build_base_model(dim_in,h_sz)
-		load(model,savename)
-	X,Y = load_data(ds=2,downsample=downsample)
-	pos_id = np.nonzero(Y)[0]
-	neg_id = np.where(Y==0)[0]
-	print("Y_test has %s pos label and %s neg label"%(len(pos_id),len(neg_id)))
-	score = model.evaluate(X,Y)
-
-	yp = model.predict(X)
-	yp[np.where(yp>=0.5)]=1
-	yp[np.where(yp<0.5)]=0
-	acc = _accuracy(yp,Y)
-	precision, recall, f1, _ = precision_recall_fscore_support(yp,Y)
-	print("\n>> Test results -- Accuracy: %s, precision: %s, recall: %s, F1: %s, loss:%s, binary_accuray:%s"%(acc, precision, recall, f1,score[0],score[1]))
 
 #######################################
 ############ Execution ################
@@ -500,21 +513,27 @@ def test():
 	# print(l[:5])
 
 	## test make Y
-	# _select_sentence(ds = 1)
+	# _select_sentence(ds =1)
+
 	# Y = make_Y(ds=2)
 	# print(Y.shape)  #### ds=2: 4909. ds=1:33519
 
+	# X_seq = _seq2vec(False,ds=2)
+
 	# X_source = _feat_source(ds = 2)
 	# print("X_source.shape",X_source.shape)
-	# X_sum = _feat_sum_sofar(ds = 2)
+	X_sum = _feat_sum_sofar(ds = 1)
+	exit(0)
 	# _feat_cand_noninterac(ds = 2)
-	X = make_X(ds=1)
+	# X = make_X(ds=2)
 
-	# X,Y = load_data(ds = 1)
-
+	X,Y = load_data(False, ds = 1)
+	from sklearn.feature_selection import mutual_info_classif
+	from sklearn.feature_selection import SelectKBest
+	X_new = SelectKBest(mutual_info_classif, k=500).fit_transform(X, Y.ravel())
 	# pca = PCA(n_components = 35)
 	# X_ = pca.fit_transform(X)
-	# print(X.shape)
+	print(X.shape)
 	# cov = pca.get_covariance()
 	# print(cov.shape)
 	pass
@@ -522,13 +541,4 @@ def test():
 
 
 if __name__ == '__main__':
-	# test()
-
-	train(downsample=False,savename = None)
-
-
-	
-	
-
-
-
+	test()
