@@ -5,21 +5,11 @@ import math
 import sys
 import os
 from collections import Counter
-if sys.version_info >= (3,0):
-	from keras.models import Sequential
-	from keras.layers import Dense,Dropout
-	from keras import optimizers
-	from keras.metrics import binary_accuracy as accuracy
-	import h5py
-	from sklearn.metrics import precision_recall_fscore_support
-	from sklearn.utils import shuffle
-	from sklearn.feature_selection import mutual_info_classif
-	from sklearn.feature_selection import SelectKBest
+
 from scipy import io
 from functools import reduce
-from adasyn import ADASYN
 
-from old_baseline import _get_importance
+
 sys.path.append(os.path.abspath('..'))
 from content_hmm import *
 
@@ -129,6 +119,31 @@ def _seq2vec(content, ds =1, topic = 'War Crimes and Criminals', savedir = data_
 	np.save(_save,we_sents)
 	return we_sents
 	
+def _get_importance(topic, ds,context_sz):
+	docs,_ = pickle.load(open(input_path+"contents/"+topic+"/"+topic+str(ds)+".pkl","rb"))
+	m = np.load("pred/pred_M"+str(context_sz)+("_test" if ds==2 else "_train")+"_model.npy")
+	print("m.shape",m.shape)
+	X = np.zeros((sum([len(d) for d in docs]),2))
+	idx_doc = 0
+	count = 0
+	for doc in docs:
+		idx_sent = 0
+		for sent in doc:
+			x_ = 0
+			max_x = 0
+			for w in sent:
+				if w in SKIP_SET:
+					continue
+				else:
+					x_ += m[count]
+					max_x = max(max_x,m[count])
+					count+=1
+			x_ /= len(sent)
+			X[idx_doc+idx_sent] = x_
+			idx_sent += 1
+		idx_doc += len(doc)
+	print("M.shape",X.shape)
+	return X
 
 def _feat_source(ds = 1, topic = 'War Crimes and Criminals'):
 	## feature of source articles. count clusters distributions for each article. 
@@ -162,8 +177,7 @@ def _feat_source(ds = 1, topic = 'War Crimes and Criminals'):
 
 
 def _feat_sum_sofar(ds = 1, topic = 'War Crimes and Criminals',savename = data_path+"model_input/FFNN/X_summary"):
-	# feature of summary so far. [topic distributions] + [#word overlap with source] + [position/bin of last chosen sentence]. If no summary so far then set all to -1
-	# return X_sum: (#summary sentences, #clusters + 2)
+	# return X_sum: (#summary sentences, #clusters + 4)
 	summaries, _ = pickle.load(open(input_path+"summaries/"+topic+"/"+topic+str(ds)+".pkl","rb"))
 	sources, _ = pickle.load(open(input_path+"contents/"+topic+"/"+topic+str(ds)+".pkl","rb"))
 	model = pickle.load(open(_model_path+topic+".pkl","rb"))
@@ -347,7 +361,7 @@ def make_X(ds = 1, topic = 'War Crimes and Criminals', savedir = data_path+"mode
 			next_idx = selected_idx[idx_+1]
 			n_i = min(NUM_CAND+cur_idx+1, len_ind[idx_source]) - cur_idx -1 if next_idx<NUM_CAND+cur_idx else (next_idx-cur_idx)
 			
-			_sum_vec = sum_vec[idx_]
+			_sum_vec = sum_vec[idx_+1] # ----BUG----
 			_cand_vec = cand_vec[int(cur_idx+1):int(cur_idx+n_i+1)]
 			# print("selected idx:%s. next locally fill in rows[%s-%s).n_i=%s"%(cur_idx, cur_idx+1,cur_idx+n_i+1,n_i))
 			if n_i:
@@ -365,12 +379,13 @@ def make_X(ds = 1, topic = 'War Crimes and Criminals', savedir = data_path+"mode
 
 		X = np.vstack((X,x_prev))
 	X = X[1:]
+	print("X_concat shape",X.shape)
 	#############################
 	# interac_feat.py: feature transition prob
 	# lexical_feat.py: feature POS overlap counts
 	#############################
 	## feat: [P(S_cand|S_last summary)] + [Sim(cand, last summary)]
-	X_interac = np.load(savedir+"X_interac"+str(ds)+".npy")
+	X_interac = np.load(savedir+"X_interac_nprev"+str(ds)+".npy")
 	print("X_interac.shape",X_interac.shape)
 	X = np.hstack((X,X_interac))
 	## feat: [Verb overlap] + [Noun overlap] of candidate vs. summary so far
@@ -488,16 +503,15 @@ def load_data(normalize, ds=1,dp=data_path+"model_input/FFNN/", downsample = Tru
 		
 		X = np.vstack((X_pos,X_neg))
 		Y = np.vstack((Y_pos[:,np.newaxis],Y_neg[:,np.newaxis]))
-		
+		X,Y = shuffle(X,Y)
 		
 	else:
 		# adasyn sampling
 		# adsn = ADASYN(k=5,imb_threshold=0.9, ratio=0.75)
 		# new_X, new_y = adsn.fit_transform(X,Y.flatten())
 		Y = Y.reshape((-1,1))
-	X,Y = shuffle(X,Y)
-	X  = feat_select(X,Y,rm, normalize=normalize,n_feat = n_feat)
 	
+	# X  = feat_select(X,Y,rm, normalize=normalize,n_feat = n_feat)
 	return X,Y
 
 
@@ -519,21 +533,22 @@ def test():
 	# print(Y.shape)  #### ds=2: 4909. ds=1:33519
 
 	# X_seq = _seq2vec(False,ds=2)
+	# M = _get_importance("War Crimes and Criminals",1,4)
 
 	# X_source = _feat_source(ds = 2)
 	# print("X_source.shape",X_source.shape)
-	X_sum = _feat_sum_sofar(ds = 1)
-	exit(0)
+	# X_sum = _feat_sum_sofar(ds = 1)
+	
 	# _feat_cand_noninterac(ds = 2)
-	# X = make_X(ds=2)
+	X = make_X(ds=1)
 
-	X,Y = load_data(False, ds = 1)
-	from sklearn.feature_selection import mutual_info_classif
-	from sklearn.feature_selection import SelectKBest
-	X_new = SelectKBest(mutual_info_classif, k=500).fit_transform(X, Y.ravel())
+	# X,Y = load_data(False, ds = 1)
+	# from sklearn.feature_selection import mutual_info_classif
+	# from sklearn.feature_selection import SelectKBest
+	# X_new = SelectKBest(mutual_info_classif, k=500).fit_transform(X, Y.ravel())
 	# pca = PCA(n_components = 35)
 	# X_ = pca.fit_transform(X)
-	print(X.shape)
+	# print(X.shape)
 	# cov = pca.get_covariance()
 	# print(cov.shape)
 	pass
