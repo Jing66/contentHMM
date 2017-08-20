@@ -75,6 +75,7 @@ def _emis_uni(words):
 def _overlap(cands,sum_so_far):
 	### given a list of sentences and summaries, count the overlapping between each candidate sent vs. all summary so far (0:2)
 	### also include logprob of those noun/verbs from the content model (2:4)
+	### return (#candidates, n_dim_)
 	x = np.zeros((len(cands),n_dim_))
 	if not sum_so_far or not cands:
 		return x
@@ -244,32 +245,39 @@ def rdn_easy(savedir = data_path+"FFNN/",topic='War Crimes and Criminals'):
 		xml = open(root_dir+f).read()
 		text = A(xml).sentences
 		sum_sent = [text[idx] for idx in selected_idx]
-		print("\n>>article no.%s, n = %s. selected index = %s"%(i,len_ind[i],selected_idx))
-
+		print("\n>>article no.%s, n = %s. selected index = %s. sampled candiates = %s"%(i,len_ind[i],selected_idx,cand_rec_))
+		X_ = np.zeros(n_dim_)
 		for idx_,n_i in enumerate(cand_rec_): # n_i is an array of indicies
 			## get sampled sentences
 			sents = []
 			for ni in n_i:
-				if ni > len_ind_incr[0]:
-					f_idx = int(np.argwhere(len_ind_incr<ni)[-1]+1)
-					sent_idx = int(ni-len_ind_incr[np.argwhere(len_ind_incr<ni)[-1]])
+				if ni >= len_ind_incr[0]:
+					f_idx = int(np.argwhere(len_ind_incr<=ni)[-1]+1)
+					sent_idx = int(ni-len_ind_incr[np.argwhere(len_ind_incr<=ni)[-1]])
 				else:
 					f_idx = 0
 					sent_idx = ni
-					
-				print(f_idx, sent_idx)
+
 				xml = open(root_dir+files[f_idx]).read()
 				text_sample = A(xml).sentences
+				# print("ni = %s, total_length before = %s, sent_idx = %s, text_sample.length = %s"%(ni, len_ind_incr[np.argwhere(len_ind_incr<=ni)[-1]], sent_idx, len(text_sample)))
 				sents.append(text_sample[sent_idx])
-
-			X_ = _overlap(sents,sum_sent[:idx_])
-			## add true prediction until the last round
+			print("enumerate %sth, collected %s sentences from sampled n_i: %s"%(idx_, len(sents),n_i))
+			x = _overlap(sents,sum_sent[:idx_])
+			print("x.shape inner loop from overlap",x.shape)
+			## add true prediction if not the last round
 			if idx_<len(cand_rec_)-1:
-				x = _overlap(sents,[text[selected_idx[idx_]]]) 
-				X_ = np.vstack((X_,x))
+				x_ = _overlap([text[selected_idx[idx_]]],sum_sent[:idx_]) 
+				x = np.vstack((x,x_))
 
-			X_ = np.vstack((X_,np.zeros(n_dim_))) # <EOS>
-
+			x = np.vstack((x,np.zeros(n_dim_))) # <EOS>
+			print("x.shape inner loop",x.shape)
+			X_ = np.vstack((X_,x))
+			
+		X_ = X_[1:]
+		print("X_.shape outer loop",X_.shape)
+		X = np.vstack((X,X_))
+	
 	X = X[1:]
 	print("X_lexical_rdn_easy.shape",X.shape)
 	np.save(savedir+"X_lexical_rdn_easy"+str(ds),X)
