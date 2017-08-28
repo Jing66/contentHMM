@@ -14,6 +14,11 @@ from all_feat import _length_indicator
 sys.path.append(os.path.abspath('..'))
 from content_hmm import *
 
+####### interaction between candidate and summaries #####
+# #Noun/Verb overlap with summary
+# Pr(w) for each w in overlapping noun/verb
+###################################
+
 root_dir = "/home/rldata/jingyun/nyt_corpus/content_annotated/"
 fail_path = '/home/ml/jliu164/code/contentHMM_input/fail/'
 save_path = "/home/ml/jliu164/code/filter_results/topic2files(content).pkl"
@@ -26,7 +31,7 @@ topic ='War Crimes and Criminals'
 NUM_CAND = 10
 UNK =2
 n_dim = 2
-ds = 2
+ds = 1
 epsilon = 1e-8
 
 
@@ -70,8 +75,6 @@ def _emis_uni(words):
 	return x
 
 
-
-
 def _overlap(cands,sum_so_far):
 	### given a list of sentences and summaries, count the overlapping between each candidate sent vs. all summary so far (0:2)
 	### also include logprob of those noun/verbs from the content model (2:4)
@@ -100,6 +103,7 @@ def _overlap(cands,sum_so_far):
 			x_[1] = float(len(n_noun))/math.sqrt(len(cand_token))
 			x_[-n_clus:] = _emis_uni(n_noun) 
 		x[i,...] = x_
+	print("__overlap x",x)
 	return x
 
 
@@ -157,6 +161,7 @@ def rdn(savedir = data_path+"FFNN/"):
 	X = np.zeros(n_dim_)
 	i=0
 	for f in files:
+
 		cand_rec_ = cand_rec[i]
 		selected_idx = np.array(selected[i]).astype(int)
 		if f.split("/")[-1] in failed:
@@ -164,12 +169,7 @@ def rdn(savedir = data_path+"FFNN/"):
 		xml = open(root_dir+f).read()
 		text = A(xml).sentences
 		sum_sent = [text[int(idx)] for idx in selected_idx]
-		## start of the article
-		# if selected_idx[0] < NUM_CAND:
-		# 	n_i = np.arange(min(NUM_CAND,len_ind[i])) # not sample--true in arange
-		# else:
-		# 	n_i = np.random.choice(selected_idx[0] -1,NUM_CAND-1,replace=False) # indicies of sampled candidate.
-		# 	n_i = np.append(n_i,selected_idx[0]) # 9 random sample + true candidate
+		
 		n_i = cand_rec_[0]
 
 		sents = [text[ni] for ni in n_i.astype(int)]
@@ -180,41 +180,16 @@ def rdn(savedir = data_path+"FFNN/"):
 			cur_idx = selected_idx[idx_]
 			next_idx = selected_idx[idx_+1]
 
-			# if len_ind[i]<NUM_CAND: # [2],5
-			# 	n_i = np.arange(len_ind[i])
-			# elif cur_idx+NUM_CAND < next_idx: # sample. [14,26] or [4,16] or [10,20] n=30
-			# 	p = np.ones(len_ind[i]).astype(np.float32)
-			# 	p[next_idx] =0
-			# 	p/=np.sum(p)
-			# 	n_i = np.random.choice(len_ind[i],size=min(NUM_CAND-1,len_ind[i]),p=p,replace=False) # completely random sample
-			# 	n_i = np.append(n_i,next_idx) # + true candidate
-			# else: # arange + sample.[14,16] or [24,26] n=30
-			# 	n_i = np.arange(cur_idx,len_ind[i])[:NUM_CAND]
-				
-			# 	if next_idx:
-			# 		rdn = np.random.choice(next_idx ,size=NUM_CAND - len(n_i),replace=False) # if next=[0], sample from all sentences
-			# 	else:
-			# 		p = np.ones(len_ind[i]).astype(np.float32)
-			# 		p[next_idx] = 0
-			# 		p/= np.sum(p)
-			# 		rdn = np.random.choice(len_ind[i],size=NUM_CAND-len(n_i),p=p,replace=False)
-			# 	if len(rdn):
-			# 		n_i = np.concatenate((n_i,rdn)) # true pred in range
 			n_i = cand_rec_[idx_+1]
+			print("n_i",n_i)
 			
 			text_ = [text[ni] for ni in n_i.astype(int)]
 			x = _overlap(text_,sum_sent[:idx_+1])
 			x = np.vstack((x,np.zeros(n_dim_))) # <EOS>
 			X_ = np.vstack((X_,x))
-		## Last row
-		# if len_ind[i]<NUM_CAND: # [2],5
-		# 	n_i = np.arange(len_ind[i])
-		# elif selected_idx[-1]+NUM_CAND >= len_ind[i]: # [26], n=30;
-		# 	non_rdn = np.arange(selected_idx[-1]+1,len_ind[i])[:NUM_CAND]
-		# 	n_i = np.concatenate((non_rdn, np.random.choice(int(max(selected_idx[-1],len_ind[i])),NUM_CAND-len(non_rdn),replace=False)))
-		# else: # [10],19
-		# 	n_i = np.random.choice(np.arange(selected_idx[-1]+1,len_ind[i]),NUM_CAND,replace=False)
+		
 		n_i = cand_rec_[-1]
+		print("n_i",n_i)
 
 		text_ = [text[ni] for ni in n_i.astype(int)]
 		x = _overlap(text_,sum_sent) # all previous summaries
@@ -233,8 +208,8 @@ def rdn_easy(savedir = data_path+"FFNN/",topic='War Crimes and Criminals'):
 	print("Generating lexical features for random sample--- easy")
 	cand_rec = pickle.load(open(cand_rec_path+"rdn_sample_easy"+str(ds)+".pkl",'rb'))
 	len_ind = _length_indicator(ds=ds,topic=topic)
-	len_ind_incr = np.add.accumulate(len_ind)
 
+	len_ind_incr = np.add.accumulate(len_ind)
 	X = np.zeros(n_dim_)
 	
 	for i in range(len(cand_rec)):
@@ -260,18 +235,17 @@ def rdn_easy(savedir = data_path+"FFNN/",topic='War Crimes and Criminals'):
 
 				xml = open(root_dir+files[f_idx]).read()
 				text_sample = A(xml).sentences
-				# print("ni = %s, total_length before = %s, sent_idx = %s, text_sample.length = %s"%(ni, len_ind_incr[np.argwhere(len_ind_incr<=ni)[-1]], sent_idx, len(text_sample)))
 				sents.append(text_sample[sent_idx])
-			print("enumerate %sth, collected %s sentences from sampled n_i: %s"%(idx_, len(sents),n_i))
+			
 			x = _overlap(sents,sum_sent[:idx_])
-			print("x.shape inner loop from overlap",x.shape)
+
 			## add true prediction if not the last round
 			if idx_<len(cand_rec_)-1:
 				x_ = _overlap([text[selected_idx[idx_]]],sum_sent[:idx_]) 
 				x = np.vstack((x,x_))
 
 			x = np.vstack((x,np.zeros(n_dim_))) # <EOS>
-			print("x.shape inner loop",x.shape)
+			# print("x.shape inner loop",x.shape)
 			X_ = np.vstack((X_,x))
 			
 		X_ = X_[1:]
@@ -280,7 +254,7 @@ def rdn_easy(savedir = data_path+"FFNN/",topic='War Crimes and Criminals'):
 	
 	X = X[1:]
 	print("X_lexical_rdn_easy.shape",X.shape)
-	np.save(savedir+"X_lexical_rdn_easy"+str(ds),X)
+	np.save(savedir+"X_lexical_rdn_easy1.4"+str(ds),X)
 
 
 
@@ -288,5 +262,5 @@ def rdn_easy(savedir = data_path+"FFNN/",topic='War Crimes and Criminals'):
 
 if __name__ == '__main__':
 	# non_rdn()
-	# rdn()
-	rdn_easy()
+	rdn()
+	# rdn_easy()

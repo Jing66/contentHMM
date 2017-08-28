@@ -1,29 +1,23 @@
 import ast
 import pickle
 import json
+from functools import reduce
 # sys.path.append(os.path.abspath('..'))
 
-def vocab_for_M(filename = "/home/ml/jliu164/code/data/vocab.txt"):
-	# loads the word2idx for Aishikc's model 
-	with open(filename, "r") as cache:
-		line = cache.readlines()[0]
-	data = ast.literal_eval(line)
-	return data
+vocab_path = "/home/ml/jliu164/code/data/word2idx.json"
 
-def gen_file_for_M(sentences, vocab,context_sz = 12,filename = "/home/ml/jliu164/code/data/M_tmp.txt"):
+SOS = "**START_SENT**"
+SOD = "**START_DOC**"
+EOS = "**END_SENT**"
+_PAD = 0
+_UNK = 2
+_TARGET = 1
+
+def _gen_file_for_M(sentences, vocab,context_sz = 12,filename = "/home/ml/jliu164/code/data/M_tmp1.txt"):
 	"""
 	Given a list of sentences, convert them into data file for Aishikc's model to run on
 	input: list of sentences, each as list of words, dictionary, window_size: left+right
-	output: 
 	"""
-	_PAD = 0
-	_UNK = 2
-	_TARGET = 1
-
-	SOS = "**START_SENT**"
-	SOD = "**START_DOC**"
-	EOS = "**END_SENT**"
-
 	if filename:
 		f = open(filename,"wb") # wipe out old records
 		f.close()
@@ -53,27 +47,45 @@ def gen_file_for_M(sentences, vocab,context_sz = 12,filename = "/home/ml/jliu164
 			out.append(line)
 	return out
 
+
 			
-def _count2(filename = "/home/ml/jliu164/code/data/M_tmp.txt"):
+def _count2(filename = "/home/ml/jliu164/code/data/importance_input/X_train_model.txt"):
 	# count the number of unknowns in a list of lists:
 	from collections import Counter
 	count = 0
 	with open(filename) as f:
 		line = f.readlines()
-
 	for ll in line:
 		l = ast.literal_eval(ll)
 		count += dict(Counter(l)).get(2,0)
-	print(count)
+	print("Out of %s lines, there are %s UNK. UNK percentage:%s"%(len(line),count,float(count)/len(line)))
 
 
-##################################### Stanford NLP Word Embeddings ###########################################
+
+def make_vocab(topics, name = "word2idx.json"):
+	# given list of topics, save a mapping of word to index. replace vocab.txt
+	_path = "/home/ml/jliu164/code/contentHMM_input/"
+	vocab = set([])
+	for topic in topics:
+		_,v_cont = pickle.load(open(_path+"contents/"+topic+"/"+topic+"0.pkl","rb"))
+		vocab = vocab.union(v_cont)
+
+	mapping = {k:v for k,v in zip(list(vocab), range(3,len(vocab)+3))}
+	print("Saving %s word to index mapping"%(len(mapping)))
+	if name:
+		json.dump(mapping, open(name,"w"))
+	
+
+
+
+
+#################################### Stanford NLP Word Embeddings ####################################
 
 def word2vec_file(filename,we_file = "/home/ml/jliu164/code/data/we_file.json"):
 	word2vec = {}
-	with open(filename) as f:
+	with open(filename,encoding="utf8") as f:
 		lines = f.readlines()
-		for line in lines[:10]:
+		for line in lines:
 			word = line.split()[0]
 			we = line.split()[1:]
 			v = [float(i) for i in we]
@@ -83,27 +95,83 @@ def word2vec_file(filename,we_file = "/home/ml/jliu164/code/data/we_file.json"):
 		json.dump(word2vec,outfile,ensure_ascii=False)
 
 
-########################################## Testing #################################################
+##################################### Generate X,Y for Importance model #########################################
 
-def test_generate_file():
-	vocab = vocab_for_M()
-	print(len(vocab))
+def generate_X(topics, filename="/home/ml/jliu164/code/data/importance_input/X.txt", ds = 1):
+	# test: train set or test set or test_model set
+	with open(vocab_path) as f:
+		vocab = json.load(f)
+	print("In total %s word to index mapping"%(len(vocab)))
 	
-	f = open("/home/ml/jliu164/code/contentHMM_input/contents/War Crimes and Criminals/War Crimes and Criminals1.pkl","rb")
-	docs,_ = pickle.load(f)
-	f.close()
-	
-	sentences = [i for val in docs for i in val]
-	print("There are %s sentences"%len(sentences))
+	sents_all = []
+	for topic in topics:
+		try:
+			f = open("/home/ml/jliu164/code/contentHMM_input/contents/"+topic+"/"+topic+str(ds)+".pkl","rb")
+		except IOError:
+			print("*****"+topic+" Not available!******")
+			exit(0)
+		else:
+			docs,_ = pickle.load(f)
+			f.close()
+		
+			sentences = [i for val in docs for i in val]
+			sents_all += sentences
+	print("There are %s sentences in total"%len(sents_all))
+	out = _gen_file_for_M(sents_all,vocab, filename =  filename)
+	return out
 
-	out = gen_file_for_M(sentences,vocab)
 
+def generate_Y(topics,filename =  "/home/ml/jliu164/code/data/importance_input/tmpY.txt"):
+	sents_all = []
+	Y = []
+	for topic in topics:
+		try:
+			f1 = open("/home/ml/jliu164/code/contentHMM_input/contents/"+topic+"/"+topic+"0.pkl","rb")
+			f2 = open("/home/ml/jliu164/code/contentHMM_input/summaries/"+topic+"/"+topic+"0.pkl","rb")
+		except IOError:
+			print("*****"+topic+" Not available!******")
+			exit(0)
+		else:
+			docs1,_ = pickle.load(f1)
+			docs2, _= pickle.load(f2)
+			f1.close()
+			f2.close()
+			assert len(docs1) == len(docs2), "Topic %s, Document length %s, summary length %s"%(topic, len(docs1),len(docs2))
+			c = 0
+			for doc1,doc2 in zip(docs1,docs2):
+				try:
+					words = reduce(lambda a,b: a.union(b), [set(i) for i in doc2])
+				except TypeError:
+					print(">>>> Error info: Topic: %s, document:%s, index %s"%(topic,doc2,c))
+					exit(0)
+				for sent in doc1:
+					for i in range(len(sent)):
+						if sent[i] in set([SOS,SOD,EOS]):
+							continue
+						elif sent[i] in words:
+							Y.append(1)
+						else:
+							Y.append(0)
+				c+=1
+	if filename:
+		with open(filename,"w") as f:
+			f.write(str(Y))
+	return Y
 
 
 if __name__ == '__main__':
-	# test_generate_file()
 	# word2vec_file("/home/ml/jliu164/code/data/word_embeddings.txt")
 	# _count2()
 
+	topics_vocab = [ "Suicides and Suicide Attempts", "Police Brutality and Misconduct", 
+       "Sex Crimes", "Drug Abuse and Traffic", "Murders and Attempted Murders", "Hijacking", 
+      "Assassinations and Attempted Assassinations", 
+       "War Crimes and Criminals", "Independence Movements and Secession","Tests and Testing"]
+	# make_vocab(topics_vocab)
+	topics_vocab = [ "War Crimes and Criminals"]
+	
+	X = generate_X(topics_vocab, filename = "/home/ml/jliu164/code/data/importance_input/X_war1.txt")
+	# Y = generate_Y(topics_vocab, filename = "/home/ml/jliu164/code/data/importance_input/Y0.txt")
+	# assert len(X)==len(Y), ("len(X)=%s, len(Y)=%s"%(len(X),len(Y)))
 
-
+	# _count2()
