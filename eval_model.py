@@ -1,6 +1,8 @@
 import numpy as np
 import pickle
-from corenlpy import AnnotatedText as A
+import sys
+import json
+
 
 topic ='War Crimes and Criminals'
 save_path = "../filter_results/topic2files(content).pkl"
@@ -8,14 +10,25 @@ data_path = "../data/model_input/"
 fail_path = '../contentHMM_input/fail/'
 cand_rec_path = data_path+"FFNN/cand_record/"
 
+if sys.version_info[0] <3:
+	from corenlpy import AnnotatedText as A
+	ds=2
 
-files_ = pickle.load(open(save_path))[topic]
-with open(fail_path+topic+"_Failed.txt") as f:
-	paths = f.readlines()
-	failed_l = [p.split("/")[-1].split(".")[0] for p in paths]
-	failed = set(failed_l)
-files = [fs for fs in files_[:-1] if fs.split('/')[-1].split(".")[0] not in failed]
+	files_ = pickle.load(open(save_path))[topic]
+	with open(fail_path+topic+"_Failed.txt") as f:
+		paths = f.readlines()
+		failed_l = [p.split("/")[-1].split(".")[0] for p in paths]
+		failed = set(failed_l)
+	files = [fs for fs in files_[:-1] if fs.split('/')[-1].split(".")[0] not in failed]
+	files = files[int(np.around(0.1*len(files))):-int(np.around(0.1*len(files)))] if ds==1 else files[int(-np.around(0.1*len(files))):]
+	p_selected = data_path+"FFNN/selected_sentences"+str(ds)+".json"
+	
+	with open(p_selected,'r') as f:
+		selected_tot = json.load(f)
 
+	print("Length of files:",len(files))
+	# print(files[-6])
+	# print(selected_tot[-6])
 
 
 def acc_(yp,Y,cand_len):
@@ -62,49 +75,111 @@ def accuracy(yp,Y):
 def breakdown(yp,y,cand_len):
 	### print a breakdown of performance for predicted scores. compare ability to predict <FOS> and <EOS>
 	print("************ Performance breakdown on predicting <First> and <EOS> ***************")
-	eos_scores_first = []
-	eos_scores_true = []
-	first_scores_last = []
-	first_scores_true = []
-
+	# eos_scores_first = []
+	# eos_scores_true = []
+	# first_scores_last = []
+	# first_scores_true = []
+	eos_correct = 0
+	n_eos=0
+	fos_correct = 1 if np.argmax(yp[:cand_len[0]])==np.argmax(y[:cand_len[0]]) else 0
+	n_fos=1
+	
 	idx = 0
+	next_fos = False
 	for i in range(len(cand_len)):
+		
 		yp_ = yp[idx:idx+cand_len[i]].ravel()
 		y_ = y[idx:idx+cand_len[i]].ravel()
+		# print("")
 		
+		## accuracy for EOS
 		if np.argmax(y_)==cand_len[i]-1:
-			eos_scores_true.append(yp_[-1])
-			eos_scores_first.append(yp_[0])
-		if np.argmax(y_) == 0:
-			first_scores_true.append(yp_[0])
-			first_scores_last.append(yp[-1])
+			n_eos+=1
+			# print("EOS")
+			# print(yp_)
+			# print(y_)
+			if np.argmax(yp_)==cand_len[i]-1:
+				eos_correct +=1
+			next_fos = True
+			idx += cand_len[i]
+			continue
+		
+		## accuracy for First
+		if next_fos:
+			# print("FOS")
+			n_fos+=1
+			
+			if np.argmax(y_)==np.argmax(yp_):
+				fos_correct +=1
+			next_fos = False
+		
 		
 		idx += cand_len[i]
-	eos_diff = np.array(eos_scores_true) - np.array(eos_scores_first)
-	first_diff = np.array(first_scores_true) - np.array(first_scores_last)
-	print("Difference scores predicting <EOS> on first candidate vs. on EOS: total %s cases"%(len(eos_diff)))
-	print("max diff: %s; min diff: %s; mean diff: %s; std diff: %s"%(np.max(eos_diff),np.min(eos_diff),np.mean(eos_diff),np.std(eos_diff)))
-	print("Difference scores predicting <FOS> on EOS vs. on first candidate : total %s cases"%(len(first_diff)))
-	print("max diff: %s; min diff: %s; mean diff: %s; std diff: %s"%(np.max(first_diff),np.min(first_diff),np.mean(first_diff),np.std(first_diff)))
+	
+	print("Accuracy on getting EOS right: %s, accuracy on getting first sentence: %s" %(float(eos_correct)/n_eos,float(fos_correct)/n_fos))
+	print(n_eos, n_fos)
+	print(eos_correct, fos_correct)
 
 
-def generate_summary(y, source, cand_len, cand_rec):
+def generate_summary(yp, index):
+	### yp: predicted y. index: which article to generate summary. ds: 1 if dev set, 2 if test set
+	print("file path:", files[index])
+	print("selected sentences", selected_tot[index])
+
+	print("yp.shape", yp.shape)
+	cand_len = np.load("../data/model_input/FFNN/candidate_length_rdn"+str(ds)+".npy")
+	cand_rec = pickle.load(open(cand_rec_path+"rdn_sample"+str(ds)+".pkl","rb"))
+	xml = open("/home/rldata/jingyun/nyt_corpus/content_annotated/"+files[index]).read()
+	text = A(xml)
+
+	n_cand_set = len(cand_rec[index])
+	n_cand = sum([len(s) for s in cand_rec[index]])+len(cand_rec[index])
+	print("n_cand_set",n_cand_set, "n_cand",n_cand)
+	offset_cand_len = sum([len(s) for s in selected_tot[:index]])+index
+	cand_len_ = cand_len[offset_cand_len:offset_cand_len+n_cand_set]
+	# print(cand_len_)
+	offset_y = sum([len(i) for s in cand_rec[:index] for i in s]) + sum([len(cand_rec[i]) for i in range(index)])
+	# print("offset_y",offset_y)
+	cand_y = yp[offset_y:offset_y+n_cand]
+	
+	print("****** original text:\n")
+	print([_pretty_sentence(s) for s in text.sentences])
+	print("\n******selecting summary:")
+	targets = _generate(cand_y, text.sentences, cand_len_, cand_rec[index])
+	print("\n******* Actual summary:")
+	print([_pretty_sentence(text.sentences[i]) for i in np.array(selected_tot[index]).astype(int)])
+	print("Selected sentences: %s, actual sentences: %s"%(targets,selected_tot[index]))
+
+
+def _generate(y, source, cand_len, cand_rec):
 	### given a source article (list of sentence), predicted y, candidate length each time, sample record, generate a summary with EOS
 	idx=0
+	# print("cand_len", cand_len)
+	# print("cand_rec", cand_rec)
+	# print(y)
+	targets = []
 	for i in range(len(cand_len)):
 		c = cand_len[i]
 		y_ = y[idx:idx+c]
 		target = np.argmax(y_)
-		print(y_, target)
+		
 		if target == c-1:
 			print("<EOS>")
 			break
 		else:
 			yp = source[cand_rec[i][target]]
-			print(yp)
+			targets.append(cand_rec[i][target])
+			# print("i",i,"target",target,"index in source",cand_rec[i][target])
+			print(_pretty_sentence(yp))
 			
 		idx += c
-		
+	return targets
+
+def _pretty_sentence(sent):
+	## return a readable sentence from AnnotatedText sentence. sent: one sentence
+	ll = [i['word'] for i in sent['tokens']]
+	return (" ").join(ll)
+
 
 
 def test():
@@ -121,27 +196,19 @@ def test():
 if __name__ == '__main__':
 	# test()
 
-	dp = "2step(1048, 351, 864)"
-	yp = np.load("pred/yp_ffnn_rdn_"+dp+".npy")
-	# Y = np.load("../data/model_input/FFNN/Y_rdn1.npy")
-	# cl = np.load("../data/model_input/FFNN/candidate_length_rdn1.npy")
-	# sep = int(0.1*len(cl))
-	# cl_dev = cl[:sep]
-	# Y = Y[:np.sum(cl_dev)]
-	# print(dp)
-	# breakdown(yp,Y,cl_dev)
+	dp = "(911, 1113)"
+	yp = np.load("pred/yp_ffnn_2step/"+dp+".npy")
+	# generate_summary(yp,14)
+	# exit(0)
 
-	cand_len = np.load("../data/model_input/FFNN/candidate_length_rdn1.npy")
-	cand_rec = pickle.load(open(cand_rec_path+"rdn_sample.pkl","rb"))
-	xml = open("/home/rldata/jingyun/nyt_corpus/content_annotated/"+files[-1]).read()
-	text = A(xml).sentences
-	local_idx = len(text)+1
-	local_idx_y = np.sum(cand_len[-local_idx:])
-	print("****** original text:\n")
-	print(text)
-	print("******selecting summary:\n")
-	generate_summary(yp[-local_idx_y:], text, cand_len[-local_idx:], cand_rec[-1])
-	print(cand_rec[-1])
+	Y = np.load("../data/model_input/FFNN/Y_rdn1.npy")
+	cl = np.load("../data/model_input/FFNN/candidate_length_rdn1.npy")
+	sep = int(0.1*len(cl))
+	cl_dev = cl[:sep]
+	Y = Y[:np.sum(cl_dev)]
+	print(dp)
+	breakdown(yp,Y,cl_dev)
+
 
 
 
