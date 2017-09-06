@@ -62,13 +62,13 @@ def greedy_pick(ds=1):
 		tagged = tagged_doc[idx:idx+len(doc[i])]
 		
 		n_tot += len(y_true)+1 # +1 for EOS
-		print("y_true",y_true)
-		print("tagged document",tagged)
+		# print("y_true",y_true)
+		# print("tagged document",tagged)
 		# pick first sentence
 		cand_tags = np.array([tagged[t] for t in cand_rec_[0]]).astype(int)
 		prior_ = prior[cand_tags]
 		target = np.argmax(prior_)
-		print("target",target)
+		# print("target",target)
 		if target == y_true[0]:
 			n_correct += 1
 			n_correct_first+=1 
@@ -86,16 +86,22 @@ def greedy_pick(ds=1):
 			# print("candidates cluster ids", cand_tags)
 			# print("last cluster id",last_topic)
 			# print("trans",next_trans)
-			print("target",target)
+			# print("target",target)
 			if y_true[k+1] in target:
 				n_correct +=1
 		# pick EOS: always wrong
 		idx += len(doc[i])
 	acc = float(n_correct)/n_tot
+	
+	n_selected = np.sum(np.array([len(k) for k in selected_tot]))
+	precision = float(n_correct)/n_selected
+	recall = acc
+	f1 = 2*precision*recall/(precision+recall)
+	
 	fos_acc = float(n_correct_first)/n_tot_fos
 	print("n_correct",n_correct, "n_correct_first", n_correct_first)
 	print("n_tot", n_tot, "n_tot_fos", n_tot_fos)
-	print("Greedy transition baseline accuracy:",acc)
+	print("Greedy transition baseline accuracy:%s, F1: %s"%(acc,f1))
 	print("Predict First sentence accuracy:", fos_acc)
 
 
@@ -137,9 +143,52 @@ def top_k(ds=1):
 	print("Predict <First> accuracy:", fos_acc)
 
 
+def importance(ds=1,context_size = 4):
+	### Choose next sentence based on importance score produced by Aishikc's model. can't predict EOS.
+	from all_feat import _get_importance,_length_indicator
+	M = _get_importance(topic, ds, 4) # M size (#sentences in all doc, 2)
+	M = M[...,0] # only use the average
+	print(M.shape)
+	p_selected = data_path+"FFNN/selected_sentences"+str(ds)+".json"
+	with open(p_selected,'r') as f:
+		selected_tot = json.load(f) # indices of article sentences selected as summary
+	len_ind = _length_indicator() # length for each source article
+	cand_rec = pickle.load(open(cand_rec_path+"rdn_sample"+str(ds)+".pkl",'rb'))
+
+	fos_correct = 0
+	n_correct = 0
+	n_tot = 0
+	idx = 0
+	for i in range(len(len_ind)):
+		y_true = selected_tot[i]
+		cand_rec_ = cand_rec[i]
+		M_local = M[idx:idx+len_ind[i]]
+		idx +=len_ind[i]
+		n_tot += len(y_true) +1 # +1 for EOS
+		# pick first summary sentence
+		target = np.argmax(M_local[cand_rec_[0]])
+		if target == y_true[0]:
+			n_correct += 1
+			fos_correct += 1
+		# pick the 2nd....nth sentence
+		for k in range(len(y_true)-1):
+			last_select = y_true[k]
+			target = np.argmax(M_local[cand_rec_[k+1]])
+			if target == y_true[k+1]:
+				n_correct += 1
+	print("n_correct:%s, n_tot: %s, fos_correct:%s"%(n_correct, n_tot, fos_correct))
+	n_selected = np.sum(np.array([len(k) for k in selected_tot]))
+	acc = float(n_correct)/n_tot
+	precision = float(n_correct)/n_selected
+	recall = acc
+	f1 = 2*precision*recall/(precision+recall)
+	fos_acc = float(fos_correct)/len(len_ind)
+	print("Importance baseline accuracy:%s, F1: %s"%(acc,f1))
+	print("Predict <First> accuracy:", fos_acc)
 
 
 if __name__ == '__main__':
 	# random_baseline()
-	# greedy_pick()
-	top_k()
+	greedy_pick()
+	# top_k()
+	importance()
