@@ -2,6 +2,9 @@ import ast
 import pickle
 import json
 from functools import reduce
+import os
+import numpy as np
+from sklearn.decomposition import IncrementalPCA as PCA
 # sys.path.append(os.path.abspath('..'))
 
 vocab_path = "/home/ml/jliu164/code/data/word2idx.json"
@@ -9,6 +12,7 @@ vocab_path = "/home/ml/jliu164/code/data/word2idx.json"
 SOS = "**START_SENT**"
 SOD = "**START_DOC**"
 EOS = "**END_SENT**"
+SKIP_SET = set([SOD, EOS,SOS])
 _PAD = 0
 _UNK = 2
 _TARGET = 1
@@ -81,7 +85,7 @@ def make_vocab(topics, name = "word2idx.json"):
 
 #################################### Stanford NLP Word Embeddings ####################################
 
-def word2vec_file(filename,we_file = "/home/ml/jliu164/code/data/we_file.json"):
+def word2vec_file(filename,we_file = "/home/ml/jliu164/code/data/utils/we_file.json"):
 	word2vec = {}
 	with open(filename,encoding="utf8") as f:
 		lines = f.readlines()
@@ -95,10 +99,59 @@ def word2vec_file(filename,we_file = "/home/ml/jliu164/code/data/we_file.json"):
 		json.dump(word2vec,outfile,ensure_ascii=False)
 
 
+def pca_we(n_component):
+	### perform pca decomposition on GloVe embedding. result in a linear transformation. return the fitted PCA
+	we = np.load("../data/utils/we_pca.npy")
+	pca = PCA(n_components = n_component)
+	print("fitting PCA...")
+	pca.fit(we)
+	print("PCA fitted!")
+	return pca
+
+
+def _freq_we():
+	## find the most frequent 5000 words so that pca only needs to be done on those. Save corresponding vectors in "we_freq"
+	topics = os.listdir("/home/ml/jliu164/code/contentHMM_input/contents/")
+	counts = {}
+	for topic in topics:
+		try:
+			f0 = open("/home/ml/jliu164/code/contentHMM_input/contents/"+topic+"/"+topic+"0.pkl","rb")
+			f1 = open("/home/ml/jliu164/code/contentHMM_input/contents/"+topic+"/"+topic+"1.pkl","rb")
+			f2 = open("/home/ml/jliu164/code/contentHMM_input/contents/"+topic+"/"+topic+"2.pkl","rb")
+		except IOError:
+			print("*****"+topic+" Not available!******")
+		else:
+			fs = [f0, f1,f2]
+			for f in fs:
+				docs, _ = pickle.load(f)
+				for doc in docs:
+					for sents in doc:
+						for w in sents:
+							if w in SKIP_SET:
+								continue
+							counts[w] = counts.get(w,0)+1
+	words = sorted(counts, key=counts.get)
+
+	n_words = 5000
+	n_dim = 300
+	words = words[-n_words:]# take the top 5000 frequent words for pca
+	with open("/home/ml/jliu164/code/data/utils/we_file.json") as f:
+		We = json.load(f) # word embedding file. {w: vec}
+		unk_vec = We["UNK"]
+	we_pca = np.zeros((n_words, n_dim))
+	for i in range(n_words):
+		v = We.get(words[i],unk_vec)
+		we_pca[i] = v
+	print(we_pca[:5])
+	print(we_pca[-5:])
+	np.save("../data/utils/we_pca.npy",we_pca)
+	print("%s word vectors saved!"%(n_words))
+
+
 ##################################### Generate X,Y for Importance model #########################################
 
 def generate_X(topics, filename="/home/ml/jliu164/code/data/importance_input/X.txt", ds = 1):
-	# test: train set or test set or test_model set
+	# generate file for importance score
 	with open(vocab_path) as f:
 		vocab = json.load(f)
 	print("In total %s word to index mapping"%(len(vocab)))
@@ -163,15 +216,17 @@ if __name__ == '__main__':
 	# word2vec_file("/home/ml/jliu164/code/data/word_embeddings.txt")
 	# _count2()
 
-	topics_vocab = [ "Suicides and Suicide Attempts", "Police Brutality and Misconduct", 
-       "Sex Crimes", "Drug Abuse and Traffic", "Murders and Attempted Murders", "Hijacking", 
-      "Assassinations and Attempted Assassinations", 
-       "War Crimes and Criminals", "Independence Movements and Secession","Tests and Testing"]
-	# make_vocab(topics_vocab)
-	topics_vocab = [ "War Crimes and Criminals"]
+	# topics_vocab = [ "Suicides and Suicide Attempts", "Police Brutality and Misconduct", 
+ #       "Sex Crimes", "Drug Abuse and Traffic", "Murders and Attempted Murders", "Hijacking", 
+ #      "Assassinations and Attempted Assassinations", 
+ #       "War Crimes and Criminals", "Independence Movements and Secession","Tests and Testing"]
+	# # make_vocab(topics_vocab)
+	# topics_vocab = [ "War Crimes and Criminals"]
 	
-	X = generate_X(topics_vocab, filename = "/home/ml/jliu164/code/data/importance_input/X_war1.txt")
+	# X = generate_X(topics_vocab, filename = "/home/ml/jliu164/code/data/importance_input/X_tmp.txt")
 	# Y = generate_Y(topics_vocab, filename = "/home/ml/jliu164/code/data/importance_input/Y0.txt")
 	# assert len(X)==len(Y), ("len(X)=%s, len(Y)=%s"%(len(X),len(Y)))
 
 	# _count2()
+
+	_freq_we()

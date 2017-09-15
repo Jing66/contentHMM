@@ -1,14 +1,23 @@
 import numpy as np
 import pickle
 import sys
+import os
 import json
 
 
 topic ='War Crimes and Criminals'
+input_path = "/home/ml/jliu164/code/contentHMM_input/"
+_model_path = "/home/ml/jliu164/code/contentHMM_tagger/contents/"
 save_path = "../filter_results/topic2files(content).pkl"
 data_path = "../data/model_input/"
 fail_path = '../contentHMM_input/fail/'
 cand_rec_path = data_path+"FFNN/cand_record/"
+
+EOD = "*EOD*" # predict the end
+START_SENT = "**START_SENT**"
+SOD = "**START_DOC**"
+END_SENT = "**END_SENT**"
+
 
 if sys.version_info[0] <3:
 	from corenlpy import AnnotatedText as A
@@ -26,10 +35,13 @@ if sys.version_info[0] <3:
 	with open(p_selected,'r') as f:
 		selected_tot = json.load(f)
 
-	print("Length of files:",len(files))
+	
 	# print(files[-6])
 	# print(selected_tot[-6])
 
+###############
+# separate case #
+###############
 
 def acc_(yp,Y,cand_len):
 	n_correct = 0
@@ -90,14 +102,10 @@ def breakdown(yp,y,cand_len):
 		
 		yp_ = yp[idx:idx+cand_len[i]].ravel()
 		y_ = y[idx:idx+cand_len[i]].ravel()
-		# print("")
 		
 		## accuracy for EOS
 		if np.argmax(y_)==cand_len[i]-1:
 			n_eos+=1
-			# print("EOS")
-			# print(yp_)
-			# print(y_)
 			if np.argmax(yp_)==cand_len[i]-1:
 				eos_correct +=1
 			next_fos = True
@@ -120,9 +128,14 @@ def breakdown(yp,y,cand_len):
 	print(n_eos, n_fos)
 	print(eos_correct, fos_correct)
 
+#########################
+#  Generate summary   #
+#########################
 
-def generate_summary(yp, index):
+
+def generate_summary_fake(yp, index):
 	### yp: predicted y. index: which article to generate summary. ds: 1 if dev set, 2 if test set
+	### not truly generating summary: already assuming gold standard summary
 	print("file path:", files[index])
 	print("selected sentences", selected_tot[index])
 
@@ -175,6 +188,58 @@ def _generate(y, source, cand_len, cand_rec):
 		idx += c
 	return targets
 
+
+def generate_summary(source, model):
+	### Given source article and content model, no gold standard summary, generate a summary.
+	### source: list of sentences, each list of words.
+	## [source] = [embedding] + [cluster]
+	with open("/home/ml/jliu164/code/data/utils/we_file.json") as f:
+		We = json.load(f)
+		unk_vec = We["UNK"]
+	x_se = np.zeros((len(source),len(unk_vec))) #(#sent,300) for embedding
+	for i in range(len(source)):
+		sent_vec = np.zeros(len(unk_vec))
+		count = 0
+		for w in source[i]:
+			if w in set([START_SENT, END_SENT,SOD]):
+				continue
+			v = We.get(w,unk_vec)
+			sent_vec += v
+			count += 1
+		sent_vec /= count
+		x_se[i] = sent_vec
+	x_se_source = np.mean(x_se,axis=0)
+	x_dist = np.zeros(model._m) #(10,) for distribution
+	_,flat = model.viterbi(source)
+	flat_count = dict(Counter(flat))
+	for c_id, c in flat_count.items():
+		x_dist[c_id] = c
+	## [cand] = [pos] + [emis] + [importance] + [embeddings]
+	flat_sent =  [i for val in source for i in val]
+	X_cand = np.zeros((len(source),314)) # 314 is dimension of candidate
+	X_cand[...,0] = np.arange(len(source)) #(#sent)
+	X_cand[...,1] = np.array(flat)
+	X_cand[...,2:2+model._m] =  model.sent_logprob(flat_sent) #(#sent,10)
+	M = _importance(source)
+	X_cand[...,2+model._m: 4+model._m] = M
+	X[...,-4-model._m:] = x_se
+
+
+# TODO: generate importance score for each sentence on the fly
+def _importance(source):
+	return np.zeros((len(source),2))
+
+#########################
+# Evaluate EOS in binary #
+#########################
+
+
+
+
+
+
+
+
 def _pretty_sentence(sent):
 	## return a readable sentence from AnnotatedText sentence. sent: one sentence
 	ll = [i['word'] for i in sent['tokens']]
@@ -183,23 +248,21 @@ def _pretty_sentence(sent):
 
 
 def test():
-	yp = np.array([0.15,0.2,0.1,0.05,0.2,0.8,0.1])
-	y = np.zeros_like(yp)
-	y[-2]=1
-	y[0]=1
-	cand_len = np.array([4,3])
-	acc = _accuracy_at_k(yp,y,cand_len,1)
-	print(acc)
-
+	sys.path.append(os.path.abspath('..'))
+	from content_hmm import *
+	doc,_ = pickle.load(open(input_path+"contents/"+topic+"/"+topic+"2.pkl","rb"))
+	source = doc[0]
+	model = pickle.load(open(_model_path+topic+".pkl","rb"))
+	generate_summary(doc, model)
 
 
 if __name__ == '__main__':
-	# test()
+	test()
+	exit(0)
 
-	dp = "(911, 1113)"
+	dp = "(1030, 727)"
 	yp = np.load("pred/yp_ffnn_2step/"+dp+".npy")
-	# generate_summary(yp,14)
-	# exit(0)
+	# generate_summary_fake(yp,14)
 
 	Y = np.load("../data/model_input/FFNN/Y_rdn1.npy")
 	cl = np.load("../data/model_input/FFNN/candidate_length_rdn1.npy")
