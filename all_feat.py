@@ -9,7 +9,7 @@ from collections import Counter
 from scipy import io
 from functools import reduce
 
-
+from utils import MyPCA, pca_we
 sys.path.append(os.path.abspath('..'))
 from content_hmm import *
 
@@ -19,11 +19,13 @@ START_SENT = "**START_SENT**"
 SOD = "**START_DOC**"
 END_SENT = "**END_SENT**"
 
+
 FEAT2COL = {"src_cluster":(0,10),"src_se":(10,310),
-	"sum_cluster":(310,320),"sum_overlap":(320,321),"sum_pos":(321,322),"sum_num":(322,323),"sum_se":(323,623),
-	"cand_pos":(623,624),"cand_cluid":(624,625),"cand_prob":(625,635),"cand_M":(635,637),"cand_se":(637,937),
-	"interac_trans":(937,938),"interac_sim":(938,939),"interac_pos":(939,940),"interac_overlap":(940,942),"interac_emis":(942,962)}
+	"sum_cluster":(310,320),"sum_overlap":(320,321),"sum_pos":(321,322),"sum_posbin":(322,323),"sum_num":(323,324),"sum_se":(324,624),
+	"cand_pos":(624,625),"cand_cluid":(625,626),"cand_prob":(626,636),"cand_M":(636,638),"cand_se":(638,938),
+	"interac_trans":(938,939),"interac_pos":(939,940),"interac_M":(940,941),"interac_sim_nprev":(941,944),"interac_w_overlap":(944,946),"interac_emis":(946,964)}
 CATE_FEAT = {"sum_overlap","sum_pos","sum_num","cand_pos","cand_cluid","interac_pos","interac_overlap"} # cannot normalize
+EMB = {"src_se","cand_se","sum_se"}
 
 data_path = "/home/ml/jliu164/code/data/"
 src_path = "/home/ml/jliu164/code/Summarization/"
@@ -258,6 +260,7 @@ def _feat_sum_sofar(ds = 1, topic = 'War Crimes and Criminals',savename = data_p
 	X_ = np.hstack((X_,X_seq))
 	if savename:
 		np.save(savename+str(ds), X_)
+	print("X_summary.shape",X_.shape)
 	return X_
 
 
@@ -439,80 +442,32 @@ def make_Y(ds = 1, topic = 'War Crimes and Criminals', savename = data_path+"mod
 
 
 
-def feat_select(X,Y, rm,normalize=True, n_feat=None):
+def feat_select(X,Y, rm, n_pca = 100, pca = None):
 	## select features
 	## Removing features by me
+	X_ = np.zeros((X.shape[0],1))
 	
-	t = [FEAT2COL[s] for s in rm]
-	col_minus = [t[1]-t[0] for t in t]
-	if col_minus:
-		n_col = X.shape[1]- reduce(lambda x, y: x+y, col_minus)
-	else:
-		n_col = X.shape[1]
-	X_ = np.zeros((X.shape[0],n_col))
 	idx = 0
 	for feat in FEAT2COL:
 		if feat in rm:
 			continue
 		start,stop = FEAT2COL[feat]
 		x =X[...,start:stop]
-		if normalize and feat not in CATE_FEAT:
-			X_[...,idx:idx+(stop-start)] = (x-np.mean(x,axis=0))/np.std(x,axis=0)
+		## PCA
+		if pca and n_pca and feat in EMB:
+			# print("n_pca",n_pca)
+			x = pca.transform(n_pca, x)
+			# print("x.shape",x.shape)
 			
-		else:
-			X_[...,idx:idx+(stop-start)]=x
+		X_ = np.hstack((X_,x))
 		idx += (stop-start)
-	else:
-		X_ = X
+	
 
-	## mutual information feature selection
-	if n_feat:
-		X_ = SelectKBest(mutual_info_classif, k=n_feat).fit_transform(X_, Y.ravel())
-	## Removing features with low variance
-	# from sklearn.feature_selection import VarianceThreshold
-	# sel = VarianceThreshold(threshold=(.5 * (1 - .5)))
-	# X = sel.fit_transform(X_)
+	X_ = X_[...,1:]
+	print("X_.shape",X_.shape)
 	return X_
 
 
-def load_data(normalize, ds=1,dp=data_path+"model_input/FFNN/", downsample = True, rm = set(),n_feat = None):
-	# read X,Y
-	try:
-		X = np.load(dp+"X"+str(ds)+".npy")
-	except IOError:
-		print("X not generated...")
-		X = make_X(ds=ds)
-	try:
-		Y = np.load(dp+"Y"+str(ds)+".npy")
-	except IOError:
-		print("Y not generated...")
-		Y = make_Y(ds=ds)
-		
-	assert X.shape[0]==Y.shape[0],(X.shape, Y.shape)
-	##### Select features from X #####
-	if downsample:
-		# down sample
-		pos_id = np.nonzero(Y)[0]
-		neg_id = np.where(Y==0)[0]
-		
-		neg_sample_id = neg_id[np.random.choice(len(neg_id), len(pos_id), replace=False)]
-		Y_pos = Y[pos_id]
-		Y_neg = Y[neg_sample_id]
-		X_pos = X[pos_id]
-		X_neg = X[neg_sample_id]
-		
-		X = np.vstack((X_pos,X_neg))
-		Y = np.vstack((Y_pos[:,np.newaxis],Y_neg[:,np.newaxis]))
-		X,Y = shuffle(X,Y)
-		
-	else:
-		# adasyn sampling
-		# adsn = ADASYN(k=5,imb_threshold=0.9, ratio=0.75)
-		# new_X, new_y = adsn.fit_transform(X,Y.flatten())
-		Y = Y.reshape((-1,1))
-	
-	# X  = feat_select(X,Y,rm, normalize=normalize,n_feat = n_feat)
-	return X,Y
 
 
 #######################################
@@ -537,10 +492,10 @@ def test():
 
 	# X_source = _feat_source(ds = 2)
 	# print("X_source.shape",X_source.shape)
-	# X_sum = _feat_sum_sofar(ds = 1)
+	X_sum = _feat_sum_sofar(ds = 1)
 	
 	# _feat_cand_noninterac(ds = 2)
-	X = make_X(ds=1)
+	# X = make_X(ds=1)
 
 	# X,Y = load_data(False, ds = 1)
 	# from sklearn.feature_selection import mutual_info_classif

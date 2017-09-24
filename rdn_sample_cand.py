@@ -11,7 +11,7 @@ from scipy import io
 from functools import reduce
 
 
-from all_feat import _feat_source,_feat_sum_sofar,_feat_cand_noninterac, _length_indicator
+from all_feat import _feat_source,_feat_sum_sofar,_feat_cand_noninterac, _length_indicator, FEAT2COL, CATE_FEAT
 sys.path.append(os.path.abspath('..'))
 from content_hmm import *
 
@@ -24,12 +24,6 @@ START_SENT = "**START_SENT**"
 SOD = "**START_DOC**"
 END_SENT = "**END_SENT**"
 
-FEAT2COL = {"src_cluster":(0,10),"src_se":(10,310),
-	"sum_cluster":(310,320),"sum_overlap":(320,321),"sum_pos":(321,322),"sum_posbin":(322,323),"sum_num":(323,324),"sum_se":(324,624),
-	"cand_pos":(624,625),"cand_posbin":(625,626),"cand_cluid":(626,627),"cand_prob":(627,638),"cand_M":(637,639),"cand_se":(639,939),
-	"interac_trans":(939,940),"interac_pos":(940,941),"interac_M":(941,942),"interac_sim_nprev":(942,945),"interac_w_overlap":(945,947),"interac_emis":(946,964)}
-
-CATE_FEAT = {"sum_overlap","sum_pos","sum_num","cand_pos","cand_cluid","interac_pos","interac_overlap"} # cannot normalize
 
 data_path = "/home/ml/jliu164/code/data/model_input/"
 cand_rec_path = data_path+"FFNN/cand_record/"
@@ -99,8 +93,8 @@ def make_X_rdn(ds = 1, topic = 'War Crimes and Criminals', savedir = data_path+"
 	X_interac = np.load(savedir+"X_interac_rdn"+str(ds)+".npy")
 	print("X_interac.shape",X_interac.shape)
 	## feat: [Verb overlap] + [Noun overlap] of candidate vs. summary so far
-	X_lexical = np.load(savedir+"X_lexical_rdn"+str(ds)+".npy")
-	print("X_lexical.shape",X_lexical.shape)
+	# X_lexical = np.load(savedir+"X_lexical_rdn"+str(ds)+".npy")
+	# print("X_lexical.shape",X_lexical.shape)
 
 	feats = [X_source,X_summary,X_cand] # add X_interac,X_lexical later
 	# X = np.zeros(sum([x.shape[1] for x in feats]))
@@ -218,13 +212,13 @@ def make_X_rdn(ds = 1, topic = 'War Crimes and Criminals', savedir = data_path+"
 	print("# candidate_length:",len(cand_len))
 	X = X[1:]
 	X[...,-26:-20] = X_interac
-	X[...,-20:] = X_lexical
+	# X[...,-20:] = X_lexical
 	print("X.shape",X.shape)
 	
 	if save:
 		np.save(savedir+"X_rdn"+str(ds),X)
 		np.save(savedir+"candidate_length_rdn"+str(ds),np.array(cand_len))
-		pickle.dump(cand_rec, open(cand_rec_path+"rdn_sample.pkl","wb"))
+		pickle.dump(cand_rec, open(cand_rec_path+"rdn_sample"+str(ds)+".pkl","wb"))
 
 
 
@@ -285,4 +279,4 @@ def make_Y_rdn(ds = 1, topic = 'War Crimes and Criminals', savename = data_path+
 
 if __name__ == '__main__':
 	make_X_rdn(ds=1,save=True)
-	# make_Y_rdn()
+	# make_Y_rdn(ds=1)

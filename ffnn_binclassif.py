@@ -15,6 +15,7 @@ from sklearn.feature_selection import SelectKBest
 
 from all_feat import feat_select
 from eval_model import accuracy_at_k, accuracy
+from utils import MyPCA, pca_we
 
 data_path = "/home/ml/jliu164/code/data/"
 
@@ -37,7 +38,7 @@ def _downsample(X,Y):
 	
 
 
-def load_data(suffix="",ds=1,dp="model_input/FFNN/", downsample = True, rm = set(),n_feat = None):
+def load_data(suffix="",ds=1,dp="model_input/FFNN/", rm = set(),n_pca = 100, pca = None):
 	# read X,Y
 	try:
 		X = np.load(data_path+dp+"X_rdn"+suffix+str(ds)+".npy")
@@ -56,7 +57,7 @@ def load_data(suffix="",ds=1,dp="model_input/FFNN/", downsample = True, rm = set
 	assert X.shape[0]==Y.shape[0],(X.shape, Y.shape)
 	Y = Y.reshape((-1,1))
 	# print("Removing features...",rm)
-	X = feat_select(X,Y,rm)
+	X = feat_select(X,Y,rm, n_pca = n_pca, pca = pca)
 	return X,Y
 
 
@@ -97,13 +98,13 @@ def load(model,savename):
 	return model
 
 
-def train( savename = "models/ffnn_2step/bi_classif_War", rm_feat = {},n_feat = None, downsample_dev = True):
+def train( savename = "models/ffnn_2step/bi_classif_War", rm_feat = {},n_pca = 100, downsample_dev = True):
 	_p = "model_input/FFNN/"
-
+	pca = pca_we()
 	#############
 	## Data for First step of incremental training
 	#############
-	X,Y = load_data(suffix="_easy", ds=1,dp=_p, rm = rm_feat,n_feat = n_feat)
+	X,Y = load_data(suffix="_easy", ds=1,dp=_p, rm = rm_feat,n_pca = 100, pca = pca)
 	if downsample_dev:
 		X,Y = _downsample(X,Y) # test on downsampled distribution
 	X,Y = shuffle(X,Y)
@@ -115,7 +116,7 @@ def train( savename = "models/ffnn_2step/bi_classif_War", rm_feat = {},n_feat = 
 	if not downsample_dev:
 		X_train_ds, Y_train_ds = _downsample(X_train_ds, Y_train_ds) ## only downsample in training, test on true distribution
 	## 1 from 11 data
-	X,Y = load_data(suffix="_easy", ds=1,dp=_p, rm = rm_feat,n_feat = n_feat)
+	X,Y = load_data(suffix="_easy", ds=1,dp=_p, rm = rm_feat,n_pca = 100, pca = pca)
 	X,Y = shuffle(X,Y)
 	sep = int(0.1*len(cand_len))
 	cand_len_dev = cand_len[:sep]
@@ -126,7 +127,7 @@ def train( savename = "models/ffnn_2step/bi_classif_War", rm_feat = {},n_feat = 
 	#############
 	## Data for second step of incremental training
 	#############
-	X2,Y2 = load_data(suffix="", ds=1,dp=_p,rm = rm_feat,n_feat = n_feat)
+	X2,Y2 = load_data(suffix="", ds=1,dp=_p,rm = rm_feat,n_pca = 100, pca = pca)
 	cand_len = np.load(data_path+_p+"candidate_length_rdn1.npy").astype(int)
 	if downsample_dev:
 		X2,Y2 = _downsample(X2,Y2) # test on downsampled distribution
@@ -138,7 +139,7 @@ def train( savename = "models/ffnn_2step/bi_classif_War", rm_feat = {},n_feat = 
 	if not downsample_dev:
 		X_train_ds, Y_train_ds = _downsample(X_train_ds, Y_train_ds) ## only downsample in training, test on true distribution
 	## 1 from 11 data
-	X2,Y2 = load_data(suffix="", ds=1,dp=_p,rm = rm_feat,n_feat = n_feat)
+	X2,Y2 = load_data(suffix="", ds=1,dp=_p,rm = rm_feat,n_pca = 100, pca = pca)
 	sep2 = int(0.1*len(cand_len))
 	cand_len_dev2 = cand_len[:sep2]
 	sep_x = int(np.sum(cand_len_dev2))
@@ -293,9 +294,9 @@ if __name__ == '__main__':
 	# "cand_pos","cand_cluid","cand_prob","cand_M","cand_se",
 	# "interac_trans","interac_pos","interac_M","interac_sim_nprev","interac_w_overlap","interac_emis"}
 	# train( rm_feat={"cand_se","src_se","sum_se"},savename = "models/ffnn_2step/bi_classif_War_Noembeddings")
-	# train( rm_feat={},n_feat =None ,savename = "models/ffnn_2step/bi_classif_War_Allfeat(downsampleValid)")
-	train (savename = "models/ffnn_2step/bi_classif_War_embeddings(sampleValid)", rm_feat = {"src_cluster","sum_cluster","sum_overlap","sum_pos","sum_posbin","sum_num",
-	"cand_pos","cand_cluid","cand_prob","cand_M","interac_trans","interac_pos","interac_M","interac_sim_nprev","interac_w_overlap","interac_emis"}, downsample_dev=False)
+	train( rm_feat={},n_pca = 100,savename = None)
+	# train (savename = "models/ffnn_2step/bi_classif_War_embeddings(sampleValid)", rm_feat = {"src_cluster","sum_cluster","sum_overlap","sum_pos","sum_posbin","sum_num",
+	# "cand_pos","cand_cluid","cand_prob","cand_M","interac_trans","interac_pos","interac_M","interac_sim_nprev","interac_w_overlap","interac_emis"}, downsample_dev=False)
 	
 	# testing
 	# rm_feat={"cand_se","src_se","sum_se"}

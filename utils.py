@@ -4,7 +4,9 @@ import json
 from functools import reduce
 import os
 import numpy as np
+import scipy
 from sklearn.decomposition import IncrementalPCA as PCA
+from sklearn.utils.extmath import randomized_svd as SVD # do full SVD, truncate later
 # sys.path.append(os.path.abspath('..'))
 
 vocab_path = "/home/ml/jliu164/code/data/word2idx.json"
@@ -98,15 +100,36 @@ def word2vec_file(filename,we_file = "/home/ml/jliu164/code/data/utils/we_file.j
 	with open(we_file,"w") as outfile:
 		json.dump(word2vec,outfile,ensure_ascii=False)
 
+## it's actually SVD
+class MyPCA():
+	def __init__(self, X):
+		# self.U, self.s, self.V = scipy.linalg.svd(X, full_matrices=False)
+		self.U, self.s, self.V = SVD(X, X.shape[1])
 
-def pca_we(n_component):
+	def transform(self, n_component, x):
+		w = x.dot(self.V[:n_component].T)
+		return w
+
+
+def pca_we(savename = None):
 	### perform pca decomposition on GloVe embedding. result in a linear transformation. return the fitted PCA
 	we = np.load("../data/utils/we_pca.npy")
-	pca = PCA(n_components = n_component)
-	print("fitting PCA...")
-	pca.fit(we)
-	print("PCA fitted!")
+	## sklearn PCA -- Too slow???
+	# pca = PCA(n_components = n_component)
+	# print("fitting PCA...")
+	# pca.fit(we)
+	# print("PCA fitted!")
+	# return pca
+
+	## My implementation
+	pca = MyPCA(we)
+	print("PCA decomposed!")
+	if savename:
+		pickle.dump(pca, open(savename,"wb"))
 	return pca
+
+
+	
 
 
 def _freq_we():
@@ -229,4 +252,6 @@ if __name__ == '__main__':
 
 	# _count2()
 
-	_freq_we()
+	# _freq_we()
+	pca = pca_we()
+
