@@ -3,6 +3,7 @@ import pickle
 import sys
 import os
 import json
+from rouge import Rouge
 import matplotlib.pyplot as plt
 
 from all_feat import _length_indicator
@@ -164,8 +165,22 @@ def eos_confusion(yp,y,cand_len):
 	print(confusion_matrix(y_true, ypred,labels=[0,1]))
 
 
+###############
+# Evaluation  extrinsically #
+###############
+def rouge_score(generated, truth):
+	## y_true,yp: a list of sentences, each a list of word tokens. <EOS> excluded
+	hyp = [i for doc in generated for sent in doc for i in sent]
+	ref = [i for doc in truth for sent in doc for i in sent]
+	hyp = (" ").join(hyp)
+	ref = (" ").join(ref)
+	rouge = Rouge()
+	scores = rouge.get_scores(ref, hyp)
+	return scores # {"rouge-1": {"f": _, "p": _, "r": _}, "rouge-2" : { ..     }, "rouge-3": { ... }}
+
+
 #########################
-#  Generate summary   #
+#  Generate summary intrinsic   #
 #########################
 def generate_summary_fake(yp, index):
 	### yp: predicted y. index: which article to generate summary. ds: 1 if dev set, 2 if test set

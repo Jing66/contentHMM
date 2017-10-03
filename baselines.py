@@ -4,6 +4,8 @@ import numpy as np
 import os
 import sys
 import json
+
+from eval_model import rouge_score
 sys.path.append(os.path.abspath('..'))
 from content_hmm import *
 
@@ -105,9 +107,32 @@ def greedy_pick(ds=1):
 	print("Predict First sentence accuracy:", fos_acc)
 
 
+def top_k_rouge(ds=2):
+	## Lead baseline.
+	summary,_ = pickle.load(open(input_path+"summaries/"+topic+"/"+topic+str(ds)+".pkl","rb"),encoding="latin-1",errors="ignore")
+	docs,_ = pickle.load(open(input_path+"contents/"+topic+"/"+topic+str(ds)+".pkl","rb"),encoding="latin-1",errors="ignore")
+	
+	lw = 42 # median number of words per summary +1 (START_DOC)
+	generation = []
+	for d in docs:
+		count = 0
+		gen = []
+		for sent in d:
+			if count>lw:
+				break
+			else:
+				gen.append(sent[:min(lw-count, len(sent))])
+				count += len(sent)-2
+		# print(gen)
+		generation.append(gen)
+	score = rouge_score(generation, summary)
+	print(score)
 
-def top_k(ds=1):
+
+
+def top_k(ds=2):
 	### choose top k sentences where k = 0.1*len(article) as baseline. after chosen top k, predict EOS
+	### DISCARDED: At summary level use top_k_rouge.
 	from all_feat import _length_indicator
 	p_selected = data_path+"FFNN/selected_sentences"+str(ds)+".json"
 	with open(p_selected,'r') as f:
@@ -189,6 +214,8 @@ def importance(ds=1,context_size = 4):
 
 if __name__ == '__main__':
 	# random_baseline()
-	greedy_pick()
+	# greedy_pick()
 	# top_k()
-	importance()
+	# importance()
+
+	top_k_rouge()
