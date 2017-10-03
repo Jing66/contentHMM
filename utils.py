@@ -100,20 +100,21 @@ def word2vec_file(filename,we_file = "/home/ml/jliu164/code/data/utils/we_file.j
 	with open(we_file,"w") as outfile:
 		json.dump(word2vec,outfile,ensure_ascii=False)
 
-## it's actually SVD
+
 class MyPCA():
 	def __init__(self, X):
-		# self.U, self.s, self.V = scipy.linalg.svd(X, full_matrices=False)
-		self.U, self.s, self.V = SVD(X, X.shape[1])
+		self.U, self.s, self.V = scipy.linalg.svd(X, full_matrices=False)
+		# self.U, self.s, self.V = SVD(X, X.shape[1])
 
 	def transform(self, n_component, x):
 		w = x.dot(self.V[:n_component].T)
 		return w
 
 
-def pca_we(savename = None):
+def pca_we():
 	### perform pca decomposition on GloVe embedding. result in a linear transformation. return the fitted PCA
 	we = np.load("../data/utils/we_pca.npy")
+	print("embedding shape",we.shape)
 	## sklearn PCA -- Too slow???
 	# pca = PCA(n_components = n_component)
 	# print("fitting PCA...")
@@ -124,8 +125,7 @@ def pca_we(savename = None):
 	## My implementation
 	pca = MyPCA(we)
 	print("PCA decomposed!")
-	if savename:
-		pickle.dump(pca, open(savename,"wb"))
+	pickle.dump(pca, open("../data/utils/pca.pkl","wb"))
 	return pca
 
 
@@ -254,4 +254,6 @@ if __name__ == '__main__':
 
 	# _freq_we()
 	pca = pca_we()
-
+	v = np.random.rand(3,300)
+	v_ = pca.transform(100,v)
+	print(v_.shape)

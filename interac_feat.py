@@ -11,11 +11,11 @@ from functools import reduce
 from all_feat import _length_indicator
 sys.path.append(os.path.abspath('..'))
 from content_hmm import *
-####### interaction between candidate and summaries
-# P(S_cand|S_last summary)
-# Sim(cand, n previous summary). 0 if no summary yet
+####### interaction between candidate and summaries #####
+# logP(S_cand|S_last summary)
 # pos(cand)-pos(last summary). <0 if no summary yet?>
 # Importance score (avg) by unigram frequency in source
+# Sim(cand, n previous summary). 0 if no summary yet or EOS
 ###################################
 
 input_path = "/home/ml/jliu164/code/contentHMM_input/"
@@ -32,7 +32,7 @@ UNK = "**UNK**"
 
 
 n_dim = 3 + N_PREV
-ds= 1
+ds= 2
 topic ='War Crimes and Criminals'
 print("Making interact feature... ds=%s, topic =%s, n_dim = %s"%(ds,topic,n_dim))
 
@@ -65,10 +65,12 @@ def _similarity(sum_sents, cand_sents):
 	x = np.zeros((len(cand_sents),N_PREV))
 	words_sum = [set(c) for c in sum_sents]
 	words_cands = [set(c) for c in cand_sents]
-	offset = N_PREV - len(sum_sents)
+	offset = max(0,len(sum_sents)-N_PREV)
 	for i in range(len(cand_sents)):
-		for j in range(len(sum_sents)):
-			x[i][j+offset] = len(words_sum[j].intersection(words_cands[i]))/math.sqrt(len(words_sum[j])*len(words_cands[i]))
+		for j in range(len(sum_sents)-1, offset-1,-1):
+			# print("Comparing %sth summary sentence with %sth candidate sentence. saving in %sth column"%(j,i,j-offset))
+			x[i][j-offset] = len(words_sum[j].intersection(words_cands[i]))/math.sqrt(len(words_sum[j])*len(words_cands[i]))
+	
 	return x
 
 
@@ -245,7 +247,7 @@ def rdn(savename =  data_path+"FFNN/X_interac_rdn"):
 			## Importance score by frequence
 			x[...,2] = _m_freq(freq_map,d,n_i,word2idx)
 			## Sim(cand, last summary)
-			last_sums = summary[i][idx_-(N_PREV-1):idx_+1] if idx_>2 else summary[i][:idx_+1]
+			last_sums = summary[i][:idx_+1]
 			cands = [doc[i][ni] for ni in n_i]
 			x[...,-N_PREV:] = _similarity(last_sums, cands)
 			eos_x = _eos(len_ind[i], cur_idx)
@@ -264,7 +266,7 @@ def rdn(savename =  data_path+"FFNN/X_interac_rdn"):
 		x[...,2] = _m_freq(freq_map,d,n_i,word2idx)
 
 		cands = [d[ni] for ni in n_i]
-		sums = summary[i][-N_PREV:]
+		sums = summary[i]
 		x[...,-N_PREV:] = _similarity(sums, cands)
 		eos_x = _eos(len_ind[i],selected_idx[-1])
 		x = np.vstack((x,eos_x))
@@ -282,7 +284,7 @@ def rdn(savename =  data_path+"FFNN/X_interac_rdn"):
 
 
 ############ Random Sample: easy version, sample from other source ################
-def rdn_easy(ds = 1, savename =  data_path+"FFNN/X_interac_rdn_easy"):
+def rdn_easy(savename =  data_path+"FFNN/X_interac_rdn_easy"):
 	# load samples and add EOS
 	cand_rec = pickle.load(open(cand_rec_path+"rdn_sample_easy"+str(ds)+".pkl",'rb'))
 	
@@ -290,20 +292,21 @@ def rdn_easy(ds = 1, savename =  data_path+"FFNN/X_interac_rdn_easy"):
 	idx_cand = 0
 	idx_sum = 0
 	for i in range(len(doc)):
+		
 		cand_rec_ = cand_rec[i]
 		print("\n")
+
 		selected_idx=np.array(selected_tot[i]).astype(int)
 		flat_s = flats_sum[idx_sum:idx_sum+len(selected_idx)]
 		flat_c = flats_cand[idx_cand:idx_cand+len_ind[i]]
 		## build frequency dictionary
-		d = doc[i]
-		doc_set = [set(a[1:-1]) for a in d]
+		doc_set = [set(a[1:-1]) for a in doc[i]]
 		doc_words = reduce((lambda a,b: a.union(b)),doc_set)
 		print("|V| in %sth source: %s" %(i,len(doc_words)))
 		word2idx = dict(zip(list(doc_words),range(len(doc_words))))
 
 		freq_map = np.zeros(len(doc_words))
-		for sent in d:
+		for sent in doc[i]:
 			for w in sent[1:-1]:
 				freq_map[word2idx[w]] += 1
 		freq_map = freq_map/np.sum(freq_map) 
@@ -312,9 +315,10 @@ def rdn_easy(ds = 1, savename =  data_path+"FFNN/X_interac_rdn_easy"):
 		cands = np.array([flats_cand[ni] for ni in n_i.astype(int)])
 		X_ = np.zeros((len(n_i)+2,n_dim))
 		X_[:len(n_i),0] = prior[cands] # P(S_cand) as prior
-		print(">>%sth doc, n = %s. selected idx:%s."%(i, len_ind[i],selected_idx))
-		X_[:len(n_i),1] = 0 # candidates from other source, can't do positional
+		# print(">>%sth doc, n = %s. selected idx:%s. first fill in %s rows."%(i, len_ind[i],selected_idx, n_i))
+		X_[:len(n_i),1] = 0 ## pos(cand) - pos(last summary). candidates from other source, can't do positional
 		X_[:len(n_i),2] = _m_freq_global(freq_map,n_i,word2idx)
+		## similarities = 0
 
 		## true candidate
 		x_ = np.zeros(n_dim)
@@ -342,17 +346,18 @@ def rdn_easy(ds = 1, savename =  data_path+"FFNN/X_interac_rdn_easy"):
 			## Importance score by frequence. 
 			x[...,2] = _m_freq_global(freq_map,n_i,word2idx)
 			## Sim(cand, last summary)
-			last_sums = summary[i][idx_-(N_PREV-1):idx_+1] if idx_>2 else summary[i][:idx_+1]
+			last_sums = summary[i][:idx_+1] # +1 to include the [idx_]th sentence
 			cands = [doc_flat[ni] for ni in n_i.astype(int)]
 			x[...,-N_PREV:] = _similarity(last_sums, cands)
 
-			## add in true candidate
-			if idx_ < len(selected_idx)-1:
+			## add in the true candidate
+			if idx_< len(selected_idx)-1:
 				next_idx = selected_idx[idx_+1] # goal of prediction
 				x_ = np.zeros(n_dim)
 				x_[0] = transition[f_s,flat_c[next_idx]]
 				x_[1] = next_idx - cur_idx
 				x_[2] = _m_freq(freq_map, doc[i], [next_idx], word2idx)
+				x[...,-N_PREV:]= _similarity(last_sums, [doc[i][next_idx]])
 				x = np.vstack((x,x_))
 			## add in <EOS>
 			eos_x = _eos(len_ind[i], cur_idx)
@@ -368,8 +373,6 @@ def rdn_easy(ds = 1, savename =  data_path+"FFNN/X_interac_rdn_easy"):
 	X = X[1:]
 	print("X_interac_rdn.shape",X.shape)
 	np.save(savename+str(ds),X)
-
-
 
 
 

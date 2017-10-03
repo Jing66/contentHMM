@@ -43,7 +43,7 @@ with open(fail_path+topic+"_Failed.txt") as f:
 model = pickle.load(open(_model_path+topic+".pkl","rb"))
 n_clus = model._m -1
 n_dim_ = n_dim+2*n_clus
-word2idx = model._map
+
 len_ind = _length_indicator(ds=ds,topic=topic)
 
 files = [fs for fs in files_[:-1] if fs.split('/')[-1].split(".")[0] not in failed]
@@ -58,7 +58,7 @@ assert len(files)==len(selected)
 # files = files[:3]
 # selected = selected[:3]
 
-def _emis_uni(words):
+def _emis_uni(words, word2idx):
 	## return emission logprob for words by model from each topic
 	## return (model._m, )
 	x = np.zeros(n_clus)
@@ -98,15 +98,13 @@ def _overlap(cands,sum_so_far):
 		## [i] = len(Overlap)/sqrt(len(candidate)*len(summary_verbs))
 		if n_verb:
 			x_[0]= float(len(n_verb))/math.sqrt(len(cand_token))
-			x_[2:2+n_clus] = _emis_uni(n_verb)
+			x_[2:2+n_clus] = _emis_uni(n_verb, model._map)
 		if n_noun:
 			x_[1] = float(len(n_noun))/math.sqrt(len(cand_token))
-			x_[-n_clus:] = _emis_uni(n_noun) 
+			x_[-n_clus:] = _emis_uni(n_noun, model._map) 
 		x[i,...] = x_
 	print("__overlap x",x)
 	return x
-
-
 
 
 def non_rdn(savedir = data_path+"FFNN/"):
