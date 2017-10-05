@@ -170,12 +170,30 @@ def eos_confusion(yp,y,cand_len):
 ###############
 def rouge_score(generated, truth):
 	## y_true,yp: a list of sentences, each a list of word tokens. <EOS> excluded
-	hyp = [i for doc in generated for sent in doc for i in sent]
-	ref = [i for doc in truth for sent in doc for i in sent]
-	hyp = (" ").join(hyp)
-	ref = (" ").join(ref)
+	hyps = []
+	for doc in generated:
+		hyp = []
+		count = 0
+		for sent in doc:
+			if count == 0:
+				hyp.append((" ").join(sent[2:-1]))
+			else:
+				hyp.append((" ").join(sent[1:-1]))
+			count += 1
+		hyps.append((" ").join(hyp))
+	refs = []
+	for doc in truth:
+		hyp = []
+		count = 0
+		for sent in doc:
+			if count == 0:
+				hyp.append((" ").join(sent[2:-1]))
+			else:
+				hyp.append((" ").join(sent[1:-1]))
+			count += 1
+		refs.append((" ").join(hyp))
 	rouge = Rouge()
-	scores = rouge.get_scores(ref, hyp)
+	scores = rouge.get_scores(hyps,refs,avg=True)
 	return scores # {"rouge-1": {"f": _, "p": _, "r": _}, "rouge-2" : { ..     }, "rouge-3": { ... }}
 
 

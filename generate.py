@@ -7,20 +7,23 @@ from collections import Counter
 import h5py
 import re
 import math
+from functools import reduce
 
 from rdn_sample_cand import _x_EOD
 from utils import _gen_file_for_M as _gen_X4M
 from utils import pca_we
 from all_feat import feat_select
-
+from nltk.corpus import stopwords
+STOPWORDS = set(stopwords.words('english'))
+from interac_feat import _similarity, N_PREV, _m_freq
 if sys.version_info[0] >=3:
 	from pred_M import M_predict
-else:
-	from interac_feat import _similarity, N_PREV, _m_freq
-	from lexical_feat import _emis_uni
-	sys.path.append(os.path.abspath('..'))
-	from content_hmm import ContentTagger
-	from corenlpy import AnnotatedText as A
+	from eval_model import rouge_score
+
+# else:
+# 	sys.path.append(os.path.abspath('..'))
+# 	from content_hmm import ContentTagger
+# 	from corenlpy import AnnotatedText as A
 
 topic ='War Crimes and Criminals'
 input_path = "/home/ml/jliu164/code/contentHMM_input/"
@@ -35,20 +38,21 @@ fail_path = '/home/ml/jliu164/code/contentHMM_input/fail/'
 START_SENT = "**START_SENT**"
 SOD = "**START_DOC**"
 END_SENT = "**END_SENT**"
+UNK = "**UNK**"
 SKIP_SET = {SOD,END_SENT,START_SENT}
-
+epsilon = 1e-8
 N_CAND = 10
 DIM_EMB = 300
 
-	
-idx = 3 # index of the file in test data set
-# rm = {"cand_se","src_se","sum_se"} # remove features while doing forward pass
-rm = {}
+pos2idx = json.load(open("../data/utils/pos2idx2.json"))
+lemma2idx = json.load(open("../data/utils/lemma2idx2.json"))
+idx2lemma = inverted_dict = dict([[v,k] for k,v in lemma2idx.items()])
+lemma2pos = json.load(open("../data/utils/lemma2pos2.json"))
 
-def generate_summary(annotated_source, source, model, weights, rm ={},n_pca = 0):
+def generate_summary(idx, source, model, weights, rm ={},n_pca = 0):
 	""" 
 	Given source article and content model, no gold standard summary, generate a summary.
-	annotated_source: from corenlpy. source: list of sentences, each list of words. model: content HMM model. weights: list of numpy arrays for doing prediction
+	source: list of sentences, each list of words. model: content HMM model. weights: list of numpy arrays for doing prediction
 	"""
 	## set dimensions
 	dim_src = DIM_EMB + model._m
@@ -76,25 +80,7 @@ def generate_summary(annotated_source, source, model, weights, rm ={},n_pca = 0)
 	try:
 		x_se = np.load(data_path+"generation_input/embeddings_"+str(idx)+".npy")
 	except IOError:
-		print("generating embeddings for this article...")
-		with open(utils_path+"we_file.json") as f:
-			We = json.load(f)
-			unk_vec = np.array(We["UNK"]).astype(float)
-		x_se = np.zeros((len(source),DIM_EMB)) #(#sent,300) for embedding
-		for i in range(len(source)):
-			sent_vec = np.zeros(DIM_EMB)
-			count = 0
-			for w in source[i]:
-				if w in set([START_SENT, END_SENT,SOD]):
-					continue
-				v = We.get(w,unk_vec)
-				sent_vec += np.array(v).astype(float)
-				count += 1
-			sent_vec /= count
-			x_se[i] = sent_vec
-		
-		np.save(data_path+"generation_input/embeddings_"+str(idx),x_se)
-		print("x_se.shape",x_se.shape)
+		print("Embeddings for this article not generated!!!")
 
 	x_dist = np.zeros(model._m) #(10,) for distribution
 	_,flat = model.viterbi([source])
@@ -110,7 +96,7 @@ def generate_summary(annotated_source, source, model, weights, rm ={},n_pca = 0)
 	X_cand[...,0] = np.arange(len(source)) #(#sent)
 	X_cand[...,1] = np.array(flat)
 	X_cand[...,2:2+model._m] =  model.sent_logprob(source).T #(#sent,10)
-	M = importance(source)
+	M = importance(idx,source)
 	X_cand[...,2+model._m: 4+model._m] = M
 	X_cand[...,-DIM_EMB:] = x_se
 	print("X_cand generated",X_cand.shape)
@@ -132,7 +118,7 @@ def generate_summary(annotated_source, source, model, weights, rm ={},n_pca = 0)
 		n_i = np.arange(chosen[-1]+1, min(len(source),10+chosen[-1]+1)) # boundary for #candidates
 		print("candidate n_i",n_i)
 		## feature vector for interaction
-		X_interac = interac(annotated_source,source, flat, chosen, n_i, model, freq_map,word2idx)
+		X_interac = interac(source, flat, chosen, n_i, model, freq_map,word2idx)
 		eos_vec = _x_EOD(X_src, X_sum, n_dim, len(source), chosen[-1]) ## feature vector for eos. appended at the end
 		x_cand = np.hstack((X_cand[n_i], X_interac))
 		tmp = np.broadcast_to(X_fixed, (len(n_i), X_fixed.shape[0]))
@@ -183,7 +169,7 @@ def sum_so_far(source, indicies,model,n_bin=5):
 
 
 
-def interac(annotated_source, source, flat, sum_indicies,cand_indicies,model,freq_map, word2idx):
+def interac(source, flat, sum_indicies,cand_indicies,model,freq_map, word2idx):
 	""" compute feature vec for interaction
 		return size (#candidate x dim_interac)
 	"""
@@ -191,8 +177,7 @@ def interac(annotated_source, source, flat, sum_indicies,cand_indicies,model,fre
 	X = np.zeros((len(cand_indicies),8+2*(model._m-1))) #(??, 26)
 	cand_sent = [source[i] for i in cand_indicies]
 	sum_sent = [source[i] for i in sum_indicies[1:]]
-	annotated_sum_sent = [annotated_source[i] for i in sum_indicies[1:]]
-	annotated_cand_sent = [annotated_source[i] for i in cand_indicies]
+	
 	## Pr(S_cand|S_last summary)
 	trans = model._trans
 	prior = model._priors
@@ -206,40 +191,82 @@ def interac(annotated_source, source, flat, sum_indicies,cand_indicies,model,fre
 	## Similarity(cand, [:3] prev summary)
 	X[...,3:6] = _similarity(sum_sent, cand_sent)
 	## #Noun/verb overlap with summary and Pr(w)
-	X[...,6:] = _overlap(annotated_cand_sent, annotated_sum_sent,model)
+	X[...,6:] = _overlap(source, sum_indicies, cand_indicies,model)
 	# print("interac X",X)
 	return X
 
 
-def _overlap(cands,sum_so_far,  model):
+def _overlap(source, sum_indicies_origin, cand_indicies,  model):
 	### given a list of sentences and summaries, count the overlapping between each candidate sent vs. all summary so far (0:2). also include logprob of those noun/verbs from the content model (2:4)
+	### idx: the index of source article in given all documents
 	### return (#candidates,2+2*(model._m-1))
 	n_dim_= 2+2*(model._m-1)
-	x = np.zeros((len(cands),n_dim_))
-	if not sum_so_far or not cands:
-		return x
+	x = np.zeros((len(cand_indicies),n_dim_))
+	
 	verb_pattern = re.compile("VB")
 	noun_pattern = re.compile("NN")
-	summary_tokens = [s['tokens'] for s in sum_so_far]
-	sum_verbs = set([t['lemma'] for tokens in summary_tokens for t in tokens if verb_pattern.search(t['pos'])])
-	sum_nouns = set([t['lemma'] for tokens in summary_tokens for t in tokens if noun_pattern.search(t['pos'])])
-	for i,cand in enumerate(cands):
-		cand_token = cand['tokens']
-		cand_verb = set([t['lemma'] for t in cand_token if verb_pattern.search(t['pos'])])
-		cand_noun = set([t['lemma'] for t in cand_token if noun_pattern.search(t['pos'])])
-		
-		n_verb = sum_verbs.intersection(cand_verb)
-		n_noun = sum_nouns.intersection(cand_noun)
+	
+	noun_pos =  set([k for k,v in pos2idx.items() if noun_pattern.search(k)])
+	verb_pos = set([k for k,v in pos2idx.items() if verb_pattern.search(k)])
+	noun_idx = set([v for k,v in pos2idx.items() if noun_pattern.search(k)])
+	verb_idx = set([v for k,v in pos2idx.items() if verb_pattern.search(k)]) # list of mappings for pos
+
+	sum_indicies = sum_indicies_origin[1:] # skip "no summary": -1
+	
+	
+	lemma_idx = set([lemma2idx.get(l) for s in sum_indicies for l in source[s] if lemma2idx.get(l)]) if len(sum_indicies)>0 else set([])# idx of all lemmas in summary
+	# print("lemma_idx",lemma_idx)
+	summary_noun = [l for s in sum_indicies for l in source[s] if lemma2pos.get(l) in noun_pos]
+	summary_verb = [l for s in sum_indicies for l in source[s] if lemma2pos.get(l) in verb_pos]
+
+	for i,cand_idx in enumerate(cand_indicies):
+		# print("\nCandidate index:",cand_idx)
+		words_idx = [lemma2idx.get(s) for s in source[cand_idx] if lemma2idx.get(s)] ##  one candidate sentence, by index of word
+
+		common_word_idx = set(words_idx).intersection(lemma_idx) ##idx of all common words in summary and candidate
+		common_pos = [lemma2pos[idx2lemma[l]] for l in common_word_idx] # a list of POS for words in both summary and candidate
+		counter_pos = Counter(common_pos)
+		# print("common_pos",common_pos,"counter_pos",counter_pos)
 		x_ = np.zeros(n_dim_)
-		## [i] = len(Overlap)/sqrt(len(candidate)*len(summary_verbs))
-		if n_verb:
-			x_[0]= float(len(n_verb))/math.sqrt(len(cand_token))
-			x_[2:1+model._m] = _emis_uni(n_verb, model._map)
-		if n_noun:
-			x_[1] = float(len(n_noun))/math.sqrt(len(cand_token))
-			x_[1-model._m:] = _emis_uni(n_noun, model._map) 
+
+		common_lemma = [idx2lemma[s] for s in common_word_idx]
+		# print("common_lemma",common_lemma)
+		cand_noun = [l for l in source[cand_idx] if lemma2pos.get(l) in noun_pos]
+		cand_verb = [l for l in source[cand_idx] if lemma2pos.get(l) in verb_pos]
+		# print("cand_noun",cand_noun)
+
+		n_noun = sum([counter_pos[n] for n in noun_pos])
+		n_verb = sum([counter_pos[v] for v in verb_pos])
+		
+		## [i] = len(Overlap)/sqrt(len(candidate_verb)*len(summary_verbs))
+		
+		common_verb = [l for l in common_lemma if lemma2pos[l] in verb_pos]
+		if common_verb:
+			x_[0]= float(n_verb)/math.sqrt(len(summary_verb)*len(cand_verb))
+			x_[2:1+model._m] = _emis_uni(common_verb, model)  
+	
+		
+		common_noun = [l for l in common_lemma if lemma2pos[l] in noun_pos]
+		if common_noun:
+			x_[1] = float(n_noun)/math.sqrt(len(summary_noun)*len(cand_noun))
+			x_[1-model._m:] = _emis_uni(common_noun, model) 
+
 		x[i,...] = x_
-	# print("__overlap x",x)
+	return x
+
+def _emis_uni(words, model):
+	## return emission logprob for words by model from each topic: (model._m, )
+	x = np.zeros(model._m-1)
+	word2idx = model._map
+	emis = model._emis # emis is just the counts
+	for w in words:
+		if w in STOPWORDS:
+			continue
+		print(word2idx.get(w,2)) # UNK = 2
+		numer = np.array([np.sum(e.tocsr().toarray()[word2idx.get(w,2)]) for e in emis])
+		denom = np.sum(numer)
+		prob_all = np.log(numer+epsilon)-np.log(denom+epsilon)
+		x += prob_all
 	return x
 
 ###############
@@ -261,7 +288,7 @@ def forward(x,W, rm ={},n_pca = None, pca = None):
 # Importance score #
 ####################
 #generate importance score for each sentence on the fly
-def gen_XM(source,context_sz =4):
+def gen_XM(source,idx,context_sz =4):
 	tmpf = "/home/ml/jliu164/code/data/importance_input/generation_"+str(idx)+".txt"
 	try:
 		f1 = open(tmpf,"r")
@@ -274,8 +301,7 @@ def gen_XM(source,context_sz =4):
 		tmpf = data_path+"importance_input/generation_"+str(idx)+".txt"
 		_gen_X4M(source,vocab,context_sz = context_sz,filename = tmpf)
 
-# use python3
-def _M_sent(context_sz =4):
+def _M_sent(idx, context_sz =4):
 	genf = cur_path+"pred/Importance/"+str(context_sz)+"_generation_"+str(idx)+".npy"
 	try:
 		sent_M =np.load(genf)
@@ -288,8 +314,8 @@ def _M_sent(context_sz =4):
 	return sent_M
 
 # return the importance score for each sentence in source article
-def importance(source,context_sz=4):
-	m = _M_sent(context_sz = context_sz)
+def importance(idx, source,context_sz=4):
+	m = _M_sent(idx, context_sz = context_sz)
 	print("m.shape",m.shape)
 	X = np.zeros((len(source),2))
 	count = 0
@@ -311,49 +337,85 @@ def importance(source,context_sz=4):
 	return X
 
 
+
+def article_embedding(idx, source,We = None):
+	if not We:
+		with open(utils_path+"we_file.json") as f:
+			We = json.load(f)
+	
+	unk_vec = np.array(We["UNK"]).astype(float)
+	x_se = np.zeros((len(source),DIM_EMB)) #(#sent,300) for embedding
+	for i in range(len(source)):
+		sent_vec = np.zeros(DIM_EMB)
+		count = 0
+		for w in source[i]:
+			if w in set([START_SENT, END_SENT,SOD]):
+				continue
+			v = We.get(w,unk_vec)
+			sent_vec += np.array(v).astype(float)
+			count += 1
+		sent_vec /= count
+		x_se[i] = sent_vec
+	
+	np.save(data_path+"generation_input/embeddings_"+str(idx),x_se)
+	print("x_se.shape",x_se.shape)
+
 ###############
 #   Test      #
 ###############
-def test():
-	doc,_ = pickle.load(open(input_path+"contents/"+topic+"/"+topic+"2.pkl","rb"))
-	print("source length",len(doc[idx]))
-	model = pickle.load(open(_model_path+topic+".pkl","rb"))
+def test_generate():
+	idx = 15 # index of the file in test data set
+	# rm = {"cand_se","src_se","sum_se"} # remove features while doing forward pass
+	rm = {}
 
+	doc,_ = pickle.load(open(input_path+"contents/"+topic+"/"+topic+"2.pkl","rb"),encoding="latin-1",errors="ignore")
+	summary,_ = pickle.load(open(input_path+"summaries/"+topic+"/"+topic+"2.pkl","rb"),encoding="latin-1",errors="ignore")
+	# print("source length",len(doc[idx]))
+	model = pickle.load(open(_model_path+topic+".pkl","rb"),encoding="latin-1",errors="ignore")
+
+	
 	## Importance
-	# gen_XM(doc[idx]) #python2
-	# _M_sent() #python3
-	# importance(doc[idx]) #python2
+	# for i in range(123):
+	# 	gen_XM(doc[i],i)
+	# 	_M_sent(i)
+	# exit(0)
 
-	## load annotated article
-	files_ = pickle.load(open(save_path))[topic]
-	with open(fail_path+topic+"_Failed.txt") as f:
-		paths = f.readlines()
-		failed = set([p.split("/")[-1].split(".")[0] for p in paths])
-	word2idx = model._map
-	files = [fs for fs in files_[:-1] if fs.split('/')[-1].split(".")[0] not in failed]
-	files = files[int(-np.around(0.1*len(files))):]
-	xml = open(corpus_path+files[idx]).read()
-	annotated_source = A(xml).sentences
-
+	## Original source document
 	# s = open("/home/rldata/jingyun/nyt_corpus/content/"+re.sub("_annotated","",files[idx]).strip(".xml")).read()
 	# print(s)
 	# exit(0)
 
 	## load model weights
-	model_path = cur_path+"models/ffnn_2step_2.0/bi_classif_War_AllFeat(1493, 1109)_nonbin.h5py"
+	model_path = cur_path+"models/ffnn_2step_2.0/bi_classif_War_AllFeat(388, 1460)_nonbin.h5py"
 	file = h5py.File(model_path,"r")
 	weights = []
 	for i in range(0,len(file.keys()),2):
 		weights.append((file['weight'+str(i)][:], file['weight'+str(i+1)][:]))
 	print(">> Model loaded. %s hidden layers: %s"%(len(weights)-1,[k[1].shape[0] for k in weights[:-1]]))
-
-	print(generate_summary(annotated_source, doc[idx], model,weights, rm=rm))
 	## actual summary
 	p_selected = data_path+"model_input/FFNN/selected_sentences2.json"
 	with open(p_selected,'r') as f:
 		selected_tot = json.load(f)
-	print(selected_tot[idx])
+
+	generated = []
+	generated_idxs = []
+	for idx in range(len(doc)):
+		generated_idx = generate_summary(idx, doc[idx],model,weights,rm=rm)
+		print("generated",generated_idx)
+		generated_idxs.append(generated_idx)
+		generated.append([doc[idx][s] for s in generated_idx])
+		print("Gold standard", selected_tot[idx])
+
+	pickle.dump(generated_idxs,open("generated_idxs.txt","wb"))
+	scores = rouge_score(generated, summary)
+
+
 
 if __name__ == '__main__':
-	test()
-
+	test_generate()
+	exit(0)
+	with open(utils_path+"we_file.json") as f:
+		We = json.load(f)
+	doc,_ = pickle.load(open(input_path+"contents/"+topic+"/"+topic+"2.pkl","rb"),encoding="latin-1",errors="ignore")
+	for i,d in enumerate(doc):
+		article_embedding(i,d, We = We)
