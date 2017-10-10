@@ -41,6 +41,8 @@ with open(fail_path+topic+"_Failed.txt") as f:
 	failed_l = [p.split("/")[-1].split(".")[0] for p in paths]
 	failed = set(failed_l)
 model = pickle.load(open(_model_path+topic+".pkl","rb"))
+emis_dense = [e.tocsr().toarray() for e in model._emis] ## dense matrix counts for emission
+
 n_clus = model._m -1
 n_dim_ = n_dim+2*n_clus
 
@@ -62,11 +64,11 @@ def _emis_uni(words, word2idx):
 	## return emission logprob for words by model from each topic
 	## return (model._m, )
 	x = np.zeros(n_clus)
-	emis = model._emis # emis is just the counts
 	for w in words:
 		if w in STOPWORDS:
 			continue
-		numer = np.array([np.sum(e.tocsr().toarray()[word2idx.get(w,UNK)]) for e in emis])
+		# numer = np.array([np.sum(e.tocsr().toarray()[word2idx.get(w,UNK)]) for e in emis])
+		numer = np.array([np.sum(e[word2idx.get(w,UNK)]) for e in emis_dense])
 		denom = np.sum(numer)
 		prob_all = np.log(numer+epsilon)-np.log(denom+epsilon)
 		

@@ -4,6 +4,7 @@ import sys
 import os
 import json
 from rouge import Rouge
+from pythonrouge.pythonrouge import Pythonrouge
 import matplotlib.pyplot as plt
 
 from all_feat import _length_indicator
@@ -173,28 +174,71 @@ def rouge_score(generated, truth):
 	hyps = []
 	for doc in generated:
 		hyp = []
-		count = 0
+		# print("\n")
 		for sent in doc:
-			if count == 0:
+			# print(sent)
+			if sent[0] == SOD:
 				hyp.append((" ").join(sent[2:-1]))
 			else:
 				hyp.append((" ").join(sent[1:-1]))
-			count += 1
 		hyps.append((" ").join(hyp))
 	refs = []
 	for doc in truth:
 		hyp = []
-		count = 0
 		for sent in doc:
-			if count == 0:
+			if sent[0] == SOD:
 				hyp.append((" ").join(sent[2:-1]))
 			else:
 				hyp.append((" ").join(sent[1:-1]))
-			count += 1
 		refs.append((" ").join(hyp))
-	rouge = Rouge()
-	scores = rouge.get_scores(hyps,refs,avg=True)
+	# rouge = Rouge()
+	# scores = rouge.get_scores(hyps,refs,avg=True)
+
+	## Perl version
+	ROUGE_path ="/home/ml/jliu164/.local/lib/python3.6/site-packages/pythonrouge/RELEASE-1.5.5/ROUGE-1.5.5.pl" 
+	data_path = "/home/ml/jliu164/.local/lib/python3.6/site-packages/pythonrouge/RELEASE-1.5.5/data"
+	rouge = Pythonrouge(n_gram=2, ROUGE_SU4=True, ROUGE_L=True, stemming=True, stopwords=True, word_level=True, length_limit=True, length=50, use_cf=False, cf=95, scoring_formula="average", resampling=True, samples=1000, favor=True, p=0.5)
+	rouge_1 = []
+	rouge_2 = []
+	rouge_l = []
+	rouge_su4 = []
+	for hyp,ref in zip(hyps,refs):
+		# print(hyp)
+		# print(ref)
+		setting_file = rouge.setting(files=False, summary=[[hyp]], reference= [[[ref]]])
+		result = rouge.eval_rouge(setting_file, recall_only=True, ROUGE_path=ROUGE_path, data_path=data_path)
+		# print(result) # {'ROUGE-1': 0.31429, 'ROUGE-2': 0.08824, 'ROUGE-L': 0.22857, 'ROUGE-SU4': 0.12887}
+		rouge_1.append(result["ROUGE-1"])
+		rouge_2.append(result["ROUGE-2"])
+		rouge_l.append(result["ROUGE-L"])
+		rouge_su4.append(result["ROUGE-SU4"])
+	rouge_1 = np.array(rouge_1)
+	rouge_2 = np.array(rouge_2)
+	rouge_l = np.array(rouge_l)
+	rouge_su4 = np.array(rouge_su4)
+	scores = {"rouge_1":np.mean(rouge_1),"rouge_2":np.mean(rouge_2),"rouge_L":np.mean(rouge_l),"rouge_su4":np.mean(rouge_su4)}
 	return scores # {"rouge-1": {"f": _, "p": _, "r": _}, "rouge-2" : { ..     }, "rouge-3": { ... }}
+
+
+def oracle_chance(n_range = np.arange(15), ds_range = range(2,3)):
+	### if every time take next 10 candidates, what's the chance of next summary sentence in candidate?
+	data_path = "/home/ml/jliu164/code/data/model_input/"
+	n_in = 0
+	n_all = 0
+	for ds in ds_range:
+		p_selected = data_path+"FFNN/selected_sentences"+str(ds)+".json"
+		with open(p_selected,'r') as f:
+			selected_tot = json.load(f) # indices of article sentences selected as summary
+		for selected in selected_tot:
+			n_all += len(selected) #selected:[0,4,5,13]
+			if selected[0] in n_range:
+				n_in += 1 # first sentence
+			for i in range(len(selected)-1):
+				if selected[i+1]-selected[i] in n_range:
+					n_in += 1
+	print("candidate range = %s, computed over ds range %s, chances of having the correct sentence in candidate set is %s"%(n_range,ds_range,float(n_in)/n_all))
+	print("n_all",n_all,"n_in",n_in)
+
 
 
 #########################
@@ -263,8 +307,10 @@ def _pretty_sentence(sent):
 
 
 
-
 if __name__ == '__main__':
+
+	# oracle_chance() # 0.64
+	# exit(0)
 
 	dp = "(1030, 727)"
 	yp = np.load("pred/yp_ffnn_2step/"+dp+".npy")

@@ -8,6 +8,7 @@ import h5py
 import re
 import math
 from functools import reduce
+import matplotlib.pyplot as plt
 
 from rdn_sample_cand import _x_EOD
 from utils import _gen_file_for_M as _gen_X4M
@@ -34,6 +35,8 @@ utils_path = "/home/ml/jliu164/code/data/utils/"
 save_path = "/home/ml/jliu164/code/filter_results/topic2files(content).pkl"
 corpus_path =  "/home/rldata/jingyun/nyt_corpus/content_annotated/"
 fail_path = '/home/ml/jliu164/code/contentHMM_input/fail/'
+extract_dir = "/home/ml/jliu164/code/contentHMM_extract/contents/"
+
 
 START_SENT = "**START_SENT**"
 SOD = "**START_DOC**"
@@ -62,8 +65,7 @@ def generate_summary(idx, source, model, weights, rm ={},n_pca = 0):
 	n_dim = dim_src + dim_interac+dim_cand+dim_sum
 
 	## pca decompose
-	pca = pca_we() if n_pca else None
-
+	pca = pca_we() if n_pca !=0 else None
 	## build frequency map
 	doc_set = [set(a[1:-1]) for a in source]
 	doc_words = reduce((lambda a,b: a.union(b)),doc_set)
@@ -74,7 +76,11 @@ def generate_summary(idx, source, model, weights, rm ={},n_pca = 0):
 		for w in sent[1:-1]:
 			freq_map[word2idx[w]] += 1
 	freq_map = freq_map/np.sum(freq_map) # normalize to probability
-
+	## counts for each state
+	state_prob = np.load(extract_dir+topic+".npy")
+	## dense array for emission probability of the model
+	emis_dense = [e.tocsr().toarray() for e in model._emis]
+	
 	## [source] = [embedding] + [cluster]
 	X_src = np.zeros(dim_src)
 	try:
@@ -83,7 +89,7 @@ def generate_summary(idx, source, model, weights, rm ={},n_pca = 0):
 		print("Embeddings for this article not generated!!!")
 
 	x_dist = np.zeros(model._m) #(10,) for distribution
-	_,flat = model.viterbi([source])
+	_,flat = model.viterbi(source)
 	flat_count = dict(Counter(flat))
 	for c_id, c in flat_count.items():
 		x_dist[c_id] = c
@@ -106,19 +112,19 @@ def generate_summary(idx, source, model, weights, rm ={},n_pca = 0):
 	chosen = np.array([-1]).astype(int) # indicies of selected summary
 	count = 0
 	while (not eos) and chosen[-1] < len(source)-1:
-		print("\n>>generating %s summary sentence:"%(count))
+		# print("\n>>generating %s summary sentence:"%(count))
 		## feature vector for summary so far. same for all candidates thus n_row = 1
 		X_sum = np.zeros(dim_sum) 
-		X_sum[:14] = sum_so_far(source,chosen,model)
+		X_sum[:14] = sum_so_far(source,state_prob, chosen,model)
 
 		X_sum[-DIM_EMB:] = np.mean(x_se[chosen[1:]],axis=0) if len(chosen)>1 else np.zeros(DIM_EMB) # average all chosen summary embeddings. ALT: last embedding
 		X_fixed = np.hstack((X_src, X_sum)) # fixed part of the vector
 
 		## select candidates
 		n_i = np.arange(chosen[-1]+1, min(len(source),10+chosen[-1]+1)) # boundary for #candidates
-		print("candidate n_i",n_i)
+		# print("candidate n_i",n_i)
 		## feature vector for interaction
-		X_interac = interac(source, flat, chosen, n_i, model, freq_map,word2idx)
+		X_interac = interac(source, flat, chosen, n_i, model, freq_map,word2idx, emis_dense)
 		eos_vec = _x_EOD(X_src, X_sum, n_dim, len(source), chosen[-1]) ## feature vector for eos. appended at the end
 		x_cand = np.hstack((X_cand[n_i], X_interac))
 		tmp = np.broadcast_to(X_fixed, (len(n_i), X_fixed.shape[0]))
@@ -128,9 +134,9 @@ def generate_summary(idx, source, model, weights, rm ={},n_pca = 0):
 		
 		## Forward pass: fn(X(11 x n_dim) * W(n_dim x 1)) => y_hat(11 x 1)
 		y_hat = forward(X, weights, rm=rm, n_pca=n_pca,pca=pca)
-		print("yp.shape",y_hat.shape)
+		# print("yp.shape",y_hat.shape)
 		target = np.argmax(y_hat) + chosen[-1]+1
-		print("chosen target",target)
+		# print("chosen target",target)
 
 		if target == len(X)-1 and len(chosen) > 2:
 			eos = True
@@ -146,14 +152,14 @@ def generate_summary(idx, source, model, weights, rm ={},n_pca = 0):
 
 
 
-def sum_so_far(source, indicies,model,n_bin=5):
+def sum_so_far(source,state_prob, indicies,model,n_bin=5):
 	""" compute feature vec for summary so far, excluding embeddings cuz they can be added back later.
 		indicies: array of index for which sentences are chosen as summary
 		return (1 x dim_sum) vector
 	"""
 	X = np.zeros(model._m+4)
 	## we don't have real summary distribution
-	X[:model._m] = 0
+	X[:model._m] = state_prob
 
 	X[-4] = sum([len(source[i]) for i in indicies[1:]]) # n_word overlap == length of total summary sentences
 	X[-3] = indicies[-1] # position of last chosen sentence
@@ -169,7 +175,7 @@ def sum_so_far(source, indicies,model,n_bin=5):
 
 
 
-def interac(source, flat, sum_indicies,cand_indicies,model,freq_map, word2idx):
+def interac(source, flat, sum_indicies,cand_indicies,model,freq_map, word2idx, emis_dense):
 	""" compute feature vec for interaction
 		return size (#candidate x dim_interac)
 	"""
@@ -181,7 +187,7 @@ def interac(source, flat, sum_indicies,cand_indicies,model,freq_map, word2idx):
 	## Pr(S_cand|S_last summary)
 	trans = model._trans
 	prior = model._priors
-	tmp = trans[flat[cand_indicies], flat[sum_indicies[-1]]] if sum_indicies[-1]!=-1 else prior[flat[cand_indicies]]
+	tmp = trans[flat[sum_indicies[-1]],flat[cand_indicies]] if sum_indicies[-1]!=-1 else prior[flat[cand_indicies]]
 	X[...,0] = tmp
 	## pos(cand)-pos(last summary) 
 	# X[...,1] = cand_indicies - sum_indicies[-1] if sum_indicies[-1]!=-1 else 0 
@@ -191,12 +197,12 @@ def interac(source, flat, sum_indicies,cand_indicies,model,freq_map, word2idx):
 	## Similarity(cand, [:3] prev summary)
 	X[...,3:6] = _similarity(sum_sent, cand_sent)
 	## #Noun/verb overlap with summary and Pr(w)
-	X[...,6:] = _overlap(source, sum_indicies, cand_indicies,model)
+	X[...,6:] = _overlap(source, sum_indicies, cand_indicies,model, emis_dense)
 	# print("interac X",X)
 	return X
 
 
-def _overlap(source, sum_indicies_origin, cand_indicies,  model):
+def _overlap(source, sum_indicies_origin, cand_indicies,  model, emis_dense):
 	### given a list of sentences and summaries, count the overlapping between each candidate sent vs. all summary so far (0:2). also include logprob of those noun/verbs from the content model (2:4)
 	### idx: the index of source article in given all documents
 	### return (#candidates,2+2*(model._m-1))
@@ -243,27 +249,26 @@ def _overlap(source, sum_indicies_origin, cand_indicies,  model):
 		common_verb = [l for l in common_lemma if lemma2pos[l] in verb_pos]
 		if common_verb:
 			x_[0]= float(n_verb)/math.sqrt(len(summary_verb)*len(cand_verb))
-			x_[2:1+model._m] = _emis_uni(common_verb, model)  
+			x_[2:1+model._m] = _emis_uni(common_verb, model, emis_dense)  
 	
 		
 		common_noun = [l for l in common_lemma if lemma2pos[l] in noun_pos]
 		if common_noun:
 			x_[1] = float(n_noun)/math.sqrt(len(summary_noun)*len(cand_noun))
-			x_[1-model._m:] = _emis_uni(common_noun, model) 
+			x_[1-model._m:] = _emis_uni(common_noun, model, emis_dense) 
 
 		x[i,...] = x_
 	return x
 
-def _emis_uni(words, model):
+def _emis_uni(words, model, emis_dense):
 	## return emission logprob for words by model from each topic: (model._m, )
 	x = np.zeros(model._m-1)
 	word2idx = model._map
-	emis = model._emis # emis is just the counts
 	for w in words:
 		if w in STOPWORDS:
 			continue
-		print(word2idx.get(w,2)) # UNK = 2
-		numer = np.array([np.sum(e.tocsr().toarray()[word2idx.get(w,2)]) for e in emis])
+		# numer = np.array([np.sum(e.tocsr().toarray()[word2idx.get(w,2)]) for e in emis]) ## UNK = 2
+		numer = np.array([np.sum(e[word2idx.get(w,2)]) for e in emis_dense])
 		denom = np.sum(numer)
 		prob_all = np.log(numer+epsilon)-np.log(denom+epsilon)
 		x += prob_all
@@ -275,7 +280,7 @@ def _emis_uni(words, model):
 def forward(x,W, rm ={},n_pca = None, pca = None):
 	## forward pass. W is a list of tuple, W[i][0] is weight, W[i][1] is bias. fn = [tanh, relu, sigmoid]
 	x = feat_select(x, None, rm, n_pca = n_pca, pca = None)
-	h1 = np.tanh(x.dot(W[0][0]+W[0][1]))
+	h1 = np.tanh(x.dot(W[0][0])+W[0][1])
 	# print("h1.shape",h1.shape)
 	h2 = np.maximum(h1.dot(W[1][0])+W[1][1],0) #relu
 	# print("h2.shape",h2.shape, "W2.shape",W[2][0].shape)
@@ -360,6 +365,25 @@ def article_embedding(idx, source,We = None):
 	np.save(data_path+"generation_input/embeddings_"+str(idx),x_se)
 	print("x_se.shape",x_se.shape)
 
+
+def eval_summary():
+	doc,_ = pickle.load(open(input_path+"contents/"+topic+"/"+topic+"2.pkl","rb"),encoding="latin-1",errors="ignore")
+	summary,_ = pickle.load(open(input_path+"summaries/"+topic+"/"+topic+"2.pkl","rb"),encoding="latin-1",errors="ignore")
+	generated_idxs = pickle.load(open("generated_idxs.pkl","rb"))
+	generated_summary = []
+	for i,idx in enumerate(generated_idxs):
+		gen_sum = [doc[i][s] for s in idx]
+		generated_summary.append(gen_sum)
+	score = rouge_score(generated_summary, summary)
+	print(score)
+	## compare ability of predicting EOS
+	generated_length = np.array([len(s) for s in generated_idxs])
+	true_length = np.array([len(s) for s in summary])
+	mse = np.mean(np.square(generated_length - true_length))
+	mse_baseline = np.mean(np.square(np.full(len(summary),2.6) - true_length))
+	print("Length mse generated",mse,"mse_baseline",mse_baseline)
+
+
 ###############
 #   Test      #
 ###############
@@ -371,7 +395,7 @@ def test_generate():
 	doc,_ = pickle.load(open(input_path+"contents/"+topic+"/"+topic+"2.pkl","rb"),encoding="latin-1",errors="ignore")
 	summary,_ = pickle.load(open(input_path+"summaries/"+topic+"/"+topic+"2.pkl","rb"),encoding="latin-1",errors="ignore")
 	# print("source length",len(doc[idx]))
-	model = pickle.load(open(_model_path+topic+".pkl","rb"),encoding="latin-1",errors="ignore")
+	model = pickle.load(open(_model_path+topic+"_old.pkl","rb"),encoding="latin-1",errors="ignore")
 
 	
 	## Importance
@@ -406,16 +430,12 @@ def test_generate():
 		generated.append([doc[idx][s] for s in generated_idx])
 		print("Gold standard", selected_tot[idx])
 
-	pickle.dump(generated_idxs,open("generated_idxs.txt","wb"))
+	pickle.dump(generated_idxs,open("generated_idxs.pkl","wb"))
 	scores = rouge_score(generated, summary)
-
+	print(scores)
 
 
 if __name__ == '__main__':
 	test_generate()
-	exit(0)
-	with open(utils_path+"we_file.json") as f:
-		We = json.load(f)
-	doc,_ = pickle.load(open(input_path+"contents/"+topic+"/"+topic+"2.pkl","rb"),encoding="latin-1",errors="ignore")
-	for i,d in enumerate(doc):
-		article_embedding(i,d, We = We)
+	
+	# eval_summary()
