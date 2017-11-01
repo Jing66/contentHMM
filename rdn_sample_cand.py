@@ -11,7 +11,7 @@ from scipy import io
 from functools import reduce
 
 
-from all_feat import _feat_source,_feat_sum_sofar,_feat_cand_noninterac, _length_indicator, FEAT2COL, CATE_FEAT
+from all_feat import _feat_source,_feat_sum_sofar,_feat_cand_noninterac, _length_indicator, FEAT2COL, NORM
 sys.path.append(os.path.abspath('..'))
 from content_hmm import *
 
@@ -26,12 +26,13 @@ END_SENT = "**END_SENT**"
 
 
 data_path = "/home/ml/jliu164/code/data/model_input/"
-cand_rec_path = data_path+"FFNN/cand_record/"
+cand_rec_path = data_path+"FFNN/X/cand_record/"
 src_path = "/home/ml/jliu164/code/Summarization/"
 input_path = "/home/ml/jliu164/code/contentHMM_input/"
 _model_path = "/home/ml/jliu164/code/contentHMM_tagger/contents/"
-# input_path = data_path+"/seq_input/"
 
+n_topic = 14 # model._m
+dim_later = 2*(n_topic-1) + 8
 
 NUM_CAND = 10
 np.random.seed(7)
@@ -51,14 +52,14 @@ def _EOS_embedding():
 
 EOS_embedding = _EOS_embedding()
 
-
-def _x_EOD(source, summary, n_dim, len_source, last_pos):
-	## feature vector for <end of summary>. Source and summary are (1,dim(feat)) vectors.
+def _x_EOD(source, summary,prev, n_dim, len_source, last_pos):
+	## feature vector for <end of summary>. Source and summary are (1,dim(feat)) vectors. prev: X_prev for last sentence
 	x = np.zeros(n_dim)
 	x[0:len(source)] = source
 	x[len(source):len(source)+len(summary)] = summary
-	x[len(source)+len(summary)] = len_source+1
-	x[len(source)+len(summary)+1] = 6 # bucket of position
+	x[len(source)+len(summary):len(source)+len(summary)+len(prev)] = prev
+	x[len(source)+len(summary)+len(prev)] = len_source+1 # position
+	x[len(source)+len(summary)+len(prev)+1] = 6 # bucket of position
 
 	pos_emb = FEAT2COL["cand_se"]
 	x[pos_emb[0]:pos_emb[1]] = EOS_embedding
@@ -66,10 +67,11 @@ def _x_EOD(source, summary, n_dim, len_source, last_pos):
 	return x
 
 
-def make_X_rdn(ds = 1, topic = 'War Crimes and Criminals', savedir = data_path+"FFNN/",save=True):
+def make_X_rdn(ds = 1, topic = 'War Crimes and Criminals', savedir = data_path+"FFNN/X/",save=True):
 	### randomly sample from candidates (if the next 10 sentences doesn't reach ) and add EOS
 	## load components
-	X_source = _feat_source(ds=ds,topic=topic) #(#articles,...)
+	X_source = _feat_source(ds=ds,topic=topic,old=False) #(#articles,...)
+
 	print("X_source.shape",X_source.shape)
 	try:
 		X_summary = np.load(savedir+"X_summary"+str(ds)+".npy") # (summary sentences,...)
@@ -82,6 +84,7 @@ def make_X_rdn(ds = 1, topic = 'War Crimes and Criminals', savedir = data_path+"
 	except IOError:
 		print("candidate part not ready...generating...")
 	print("X_candidate.shape",X_cand.shape)
+	
 	p_selected = data_path+"FFNN/selected_sentences"+str(ds)+".json"
 	with open(p_selected,'r') as f:
 		selected_tot = json.load(f)
@@ -89,17 +92,10 @@ def make_X_rdn(ds = 1, topic = 'War Crimes and Criminals', savedir = data_path+"
 	
 	cand_rec = [] # save the indicies where sample is needed. won't save EOS
 
-	## feat: [P(S_cand|S_last summary)] + [Sim(cand, last summary)]
-	X_interac = np.load(savedir+"X_interac_rdn"+str(ds)+".npy")
-	print("X_interac.shape",X_interac.shape)
-	## feat: [Verb overlap] + [Noun overlap] of candidate vs. summary so far
-	# X_lexical = np.load(savedir+"X_lexical_rdn"+str(ds)+".npy")
-	# print("X_lexical.shape",X_lexical.shape)
-
 	feats = [X_source,X_summary,X_cand] # add X_interac,X_lexical later
-	# X = np.zeros(sum([x.shape[1] for x in feats]))
-	dim_later = 26
-	dim_eod = sum([x.shape[1] for x in feats]) +dim_later# total dim for <EOS> 
+	
+	
+	dim_eod = sum([x.shape[1] for x in feats]) +X_prev.shape[1]*2+dim_later# total dim for <EOS> 
 	X = np.zeros(dim_eod)
 	print("dim_eod",dim_eod)
 	print("X_init shape",X.shape)
@@ -111,11 +107,12 @@ def make_X_rdn(ds = 1, topic = 'War Crimes and Criminals', savedir = data_path+"
 	for idx_source in range(len(selected_tot)):
 		cand_rec_ = []
 		selected_idx = np.array(selected_tot[idx_source]).astype(int)
-		print("\n")
-		# locally reference vectors
+		# print("\n")
+		## locally reference vectors
 		source_vec = X_source[idx_source]
 		sum_vec = X_summary[idx_sum:idx_sum+len(selected_idx)+1]
 		cand_vec = X_cand[idx_cand: idx_cand+len_ind[idx_source]]
+		
 	
 		eos_x = _x_EOD(source_vec, sum_vec[0],dim_eod,len_ind[idx_source],-1)
 
@@ -128,12 +125,18 @@ def make_X_rdn(ds = 1, topic = 'War Crimes and Criminals', savedir = data_path+"
 			n_i = np.random.choice(selected_idx[0] -1,NUM_CAND-1,replace=False) # indicies of sampled candidate.
 			n_i = np.append(n_i,selected_idx[0]) # 9 random sample + true candidate
 
-		print(">>n = %s. selected idx:%s. first fill in %s rows."%(len_ind[idx_source],selected_idx, n_i))
+		# print(">>n = %s. selected idx:%s. first fill in %s rows."%(len_ind[idx_source],selected_idx, n_i))
+		prev_zero = np.zeros(prev_vec.shape[1]) # features from previous sentence
+		prev_vec = np.vstack((prev_zero, prev_vec)) ## append a 0's at top cuz the first sentence's prev sentence is all 0
 		
-		tmp = np.hstack((source_vec,sum_vec[0]))[np.newaxis,:]
+		prev_ = np.hstack((prev_vec[n_i],prev_vec[n_i+1])) # [prev pos+ner+lexical] + [cur pos+ner+lexical]
+		
+		tmp = np.concatenate((source_vec,sum_vec[0])).reshape((1,-1))
 		tmp = np.broadcast_to(tmp, (len(n_i), tmp.shape[1]))
-		tmp = np.hstack((tmp,cand_vec[n_i]))
+		tmp = np.concatenate((tmp,prev_,cand_vec[n_i]),axis=1)
+
 		x_prev = np.hstack((tmp, np.zeros((len(n_i),dim_later))))
+		# print("x_prev shape",x_prev.shape,"eos shape",eos_x.shape)
 		x_prev = np.vstack((x_prev, eos_x)) # 10 candidates + <EOS>
 		
 		cand_rec_.append(n_i)
@@ -167,15 +170,18 @@ def make_X_rdn(ds = 1, topic = 'War Crimes and Criminals', savedir = data_path+"
 			
 			_sum_vec = sum_vec[idx_+1]
 			_cand_vec = cand_vec[n_i]
-			print("selected idx:%s.summary index:%s. next locally fill n_i=%s"%(cur_idx,idx_+1, n_i))
+			# print("selected idx:%s.summary index:%s. next locally fill n_i=%s"%(cur_idx,idx_+1, n_i))
 			cand_len.append(len(n_i)+1)
 			cand_rec_.append(n_i)
 			
-			eos_x = _x_EOD(source_vec, _sum_vec,dim_eod,len_ind[idx_source],cur_idx)
+			eos_x = _x_EOD(source_vec, _sum_vec,prev_vec[-1],dim_eod,len_ind[idx_source],cur_idx)
 			
-			tmp = np.hstack((source_vec, _sum_vec))[np.newaxis,:]
+			## features from previous sentence
+			prev_ = np.hstack((prev_vec[n_i],prev_vec[n_i+1]))
+			tmp = np.hstack((source_vec,_sum_vec))[np.newaxis,:]
+
 			tmp = np.broadcast_to(tmp, (_cand_vec.shape[0],tmp.shape[1])) 
-			tmp_ = np.hstack((tmp,_cand_vec))
+			tmp_ = np.concatenate((tmp,prev_,_cand_vec),axis=1)
 			tmp_ = np.hstack((tmp_, np.zeros((len(n_i),dim_later))))
 
 			x_prev = np.vstack((x_prev, tmp_))
@@ -190,29 +196,40 @@ def make_X_rdn(ds = 1, topic = 'War Crimes and Criminals', savedir = data_path+"
 		else: # [10],19
 			n_i = np.random.choice(np.arange(selected_idx[-1]+1,len_ind[idx_source]),NUM_CAND,replace=False)
 		
-		print("Lastly selected idx:%s. lastly locally fill in rows n_i = %s."%(selected_idx[-1],n_i))
+		# print("Lastly selected idx:%s. lastly locally fill in rows n_i = %s."%(selected_idx[-1],n_i))
 		cand_len.append(len(n_i)+1)
 		cand_rec_.append(n_i)
 
 		_sum_vec = sum_vec[-1]
 		_cand_vec = cand_vec[n_i]
 
-		eos_x = _x_EOD(source_vec, _sum_vec,dim_eod,len_ind[idx_source],selected_idx[-1]) 
-		tmp = np.hstack((source_vec, _sum_vec))[np.newaxis,:]
+		eos_x = _x_EOD(source_vec, _sum_vec,prev_vec[-1],dim_eod,len_ind[idx_source],selected_idx[-1])
+		
+		prev_ = np.hstack((prev_vec[n_i],prev_vec[n_i+1])) ## features from previous sentence
+		tmp = np.hstack((source_vec,_sum_vec))[np.newaxis,:] #[source]+[summary]
 		tmp = np.broadcast_to(tmp, (_cand_vec.shape[0],tmp.shape[1])) 
-		tmp_ = np.hstack((tmp,_cand_vec))
+		tmp_ = np.concatenate((tmp,prev_,_cand_vec),axis=1) # [prev sentence lexical] + [current/cand sentence lexical] + [candidate sentence feature]
 		tmp_ = np.hstack((tmp_, np.zeros((len(n_i),dim_later))))
+		
+		# print("x_prev before adding last",x_prev.shape)
 		x_prev = np.vstack((x_prev, tmp_))
 		x_prev = np.vstack((x_prev, eos_x)) # 10 candidates + <EOS>
-
-		print("local x shape",x_prev.shape)
+		# print("local x shape",x_prev.shape)
 		X = np.vstack((X, x_prev))
+		# print("X shape",X.shape)
 		cand_rec.append(cand_rec_)
 
 	print("# candidate_length:",len(cand_len))
 	X = X[1:]
-	X[...,-26:-20] = X_interac
-	# X[...,-20:] = X_lexical
+	print(" X before adding lexical and interact shape (all 0)",X.shape)
+	## feat: [P(S_cand|S_last summary)] + [Sim(cand, last summary)]
+	X_interac = np.load(savedir+"X_interac_rdn"+str(ds)+".npy")
+	print("X_interac.shape",X_interac.shape)
+	## feat: [Verb overlap] + [Noun overlap] of candidate vs. summary so far
+	X_lexical = np.load(savedir+"X_lexical_rdn"+str(ds)+".npy")
+	print("X_lexical.shape",X_lexical.shape)
+	X[...,-dim_later:-X_lexical.shape[1]] = X_interac
+	X[...,-X_lexical.shape[1]:] = X_lexical
 	print("X.shape",X.shape)
 	
 	if save:
@@ -222,7 +239,7 @@ def make_X_rdn(ds = 1, topic = 'War Crimes and Criminals', savedir = data_path+"
 
 
 
-def make_Y_rdn(ds = 1, topic = 'War Crimes and Criminals', savename = data_path+"FFNN/Y_rdn"):
+def make_Y_rdn(ds = 1, topic = 'War Crimes and Criminals', savename = data_path+"FFNN/Y/Y_rdn"):
 	len_ind = _length_indicator(ds=ds,topic=topic)
 	p_selected = data_path+"FFNN/selected_sentences"+str(ds)+".json"
 	with open(p_selected,'r') as f:

@@ -42,17 +42,17 @@ def _downsample(X,Y):
 def load_data(suffix="",ds=1,dp="model_input/FFNN/", downsample = True, rm = set(),n_pca = 100, pca = None):
 	# read X,Y
 	try:
-		X = np.load(data_path+dp+"X_rdn"+suffix+str(ds)+".npy")
+		X = np.load(data_path+dp+"X/X_rdn"+suffix+str(ds)+".npy")
 	except IOError:
 		print("X not generated")
-		print(data_path+dp+"X_rdn"+suffix+str(ds)+".npy")
+		print(data_path+dp+"X/X_rdn"+suffix+str(ds)+".npy")
 		exit(0)
 		
 	try:
-		Y = np.load(data_path+dp+"Y_rdn"+suffix+str(ds)+".npy")
+		Y = np.load(data_path+dp+"Y/Y_rdn"+suffix+str(ds)+".npy")
 	except IOError:
 		print("Y not generated")
-		print(data_path+dp+"Y_rdn"+suffix+str(ds)+".npy")
+		print(data_path+dp+"Y/Y_rdn"+suffix+str(ds)+".npy")
 		exit(0)
 		
 	assert X.shape[0]==Y.shape[0],(X.shape, Y.shape)
@@ -104,48 +104,61 @@ def train( savename = "models/ffnn_2step/bi_classif_War", rm_feat = {},n_pca = 1
 	_p = "model_input/FFNN/"
 	pca = pca_we() if n_pca else None
 	#############
-	## Data for First step of incremental training
+	## Data for FIRST step of incremental training
 	#############
-	X,Y = load_data(suffix="_easy", ds=1,dp=_p, rm = rm_feat,n_pca = n_pca, pca = pca)
-	if downsample_dev:
-		X,Y = _downsample(X,Y) # test on downsampled distribution
-	cand_len = np.load(data_path+_p+"candidate_length_rdn_easy1.npy").astype(int)
-	sep = int(0.1*len(cand_len))
-	cand_len_dev = cand_len[:sep]
-	sep_x = int(np.sum(cand_len_dev))
-	X_dev, X_train = X[:sep_x], X[sep_x:]
-	Y_dev, Y_train = Y[:sep_x], Y[sep_x:]
-	if not downsample_dev:
-		X_train, Y_train = _downsample(X_train, Y_train) ## only downsample in training, test on true distribution
-	X_train, Y_train = shuffle(X_train, Y_train)
-	X_dev, Y_dev = shuffle(X_dev, Y_dev)
+	# X,Y = load_data(suffix="_easy", ds=1,dp=_p, rm = rm_feat,n_pca = n_pca, pca = pca)
+	# if downsample_dev:
+	# 	X,Y = _downsample(X,Y) # test on downsampled distribution
+	# X,Y = shuffle(X,Y)
+	# cand_len = np.load(data_path+_p+"candidate_length_rdn_easy1.npy").astype(int)
+	# ## binary data
+	# N = len(X)
+	# X_dev_ds, X_train_ds = X[:int(0.1*N)],X[int(0.1*N):]
+	# Y_dev_ds, Y_train_ds = Y[:int(0.1*N)],Y[int(0.1*N):]
+	# if not downsample_dev:
+	# 	X_train_ds, Y_train_ds = _downsample(X_train_ds, Y_train_ds) ## only downsample in training, test on true distribution
+	# ## 1 from 11 data
+	# X,Y = load_data(suffix="_easy", ds=1,dp=_p, rm = rm_feat,n_pca = n_pca, pca = pca)
+	# X,Y = shuffle(X,Y)
+	# sep = int(0.1*len(cand_len))
+	# cand_len_dev = cand_len[:sep]
+	# sep_x = int(np.sum(cand_len_dev))
+	# X_dev, X_train = X[:sep_x], X[sep_x:]
+	# Y_dev, Y_train = Y[:sep_x], Y[sep_x:]
+	# X_train, Y_train = shuffle(X_train, Y_train)
 	#############
-	## Data for second step of incremental training
+	## Data for SECOND step of incremental training
 	#############
 	X2,Y2 = load_data(suffix="", ds=1,dp=_p,rm = rm_feat,n_pca = n_pca, pca = pca)
-	cand_len2 = np.load(data_path+_p+"candidate_length_rdn1.npy").astype(int)
+	cand_len = np.load(data_path+_p+"candidate_length_rdn1.npy").astype(int)
 	if downsample_dev:
 		X2,Y2 = _downsample(X2,Y2) # test on downsampled distribution
-	sep = int(0.1*len(cand_len2))
-	cand_len_dev2 = cand_len2[:sep]
+	X2,Y2 = shuffle(X2,Y2)
+	## binary data
+	N = len(X2)
+	X_dev_ds2, X_train_ds2 = X2[:int(0.1*N)],X2[int(0.1*N):]
+	Y_dev_ds2, Y_train_ds2 = Y2[:int(0.1*N)],Y2[int(0.1*N):]
+	if not downsample_dev:
+		X_train_ds2, Y_train_ds2 = _downsample(X_train_ds2, Y_train_ds2) ## only downsample in training, test on true distribution
+	## 1 from 11 data
+	X2,Y2 = load_data(suffix="", ds=1,dp=_p,rm = rm_feat,n_pca = n_pca, pca = pca)
+	sep2 = int(0.1*len(cand_len))
+	cand_len_dev2 = cand_len[:sep2]
 	sep_x = int(np.sum(cand_len_dev2))
 	X_dev2, X_train2 = X2[:sep_x], X2[sep_x:]
 	Y_dev2, Y_train2 = Y2[:sep_x], Y2[sep_x:]
-	if not downsample_dev:
-		X_train2, Y_train2 = _downsample(X_train2, Y_train2) ## only downsample in training, test on true distribution
-	X_train2, Y_train2 = shuffle(X_train2, Y_train2)
-	X_dev2, Y_dev2 = shuffle(X_dev2, Y_dev2)
 
-	print("X_dev.shape",X_dev.shape,"X_dev2.shape",X_dev2.shape)
+	print("sep2",sep2,"X_dev.shape",X_dev2.shape)
 	print("Removed features:",rm_feat)
 
 	## config
 	h_sz1 = np.random.random_integers(low= 100, high=2000,size=5)
-	h_sz2 = np.random.random_integers(low= 100, high=1500,size=5)
-	h_sz3 = np.random.random_integers(low= 100, high=1000,size=5)
-	fn = ["tanh",'relu','relu','sigmoid']
-	# h_sz1 = np.concatenate(h_sz1, 815)
-	# h_sz2 = np.concatenate(h_sz2, 646)
+	h_sz2 = np.random.random_integers(low= 100, high=2500,size=5)
+	h_sz3 = np.random.random_integers(low= 100, high=2000,size=5)
+	h_sz4 = np.random.random_integers(low= 100, high=2000,size=5)
+	# h_sz5 = np.random.random_integers(low= 100, high=1000,size=5)
+	fn = ["relu","tanh",'relu','relu','sigmoid']
+	epochs = [65,70,75]
 
 	best_acc = 0
 	best_mode = None
@@ -154,76 +167,93 @@ def train( savename = "models/ffnn_2step/bi_classif_War", rm_feat = {},n_pca = 1
 	best_yp = None
 	best_loss = np.inf
 	
-	for hiddens in zip(h_sz1,h_sz2):
-	# for hiddens in h_sz1:
+	for i in range(len(h_sz1)):
+		hiddens = (h_sz1[i],h_sz2[i],h_sz3[i], h_sz4[i])
 		print("\n>> Trying hidden size %s "%(hiddens,))
-		
-		model1 = build_base_model(X.shape[1],h_sz = hiddens)
 
-		model1.fit(X_train,Y_train,epochs=20,verbose=0)
-		score = model1.evaluate(X_dev,Y_dev)
-		yp_raw = model1.predict(X_dev)
-		## binary evaluation
-		yp_ = np.copy(yp_raw)
-		yp_[np.where(yp_>=0.5)]=1
-		yp_[np.where(yp_<0.5)]=0
-		acc = accuracy(yp_,Y_dev)
-		print(yp_[:10]) 
-		precision, recall, f1, _ = precision_recall_fscore_support(Y_dev,yp_)
-		print("\nEasy binary Case. Accuracy: %s, precision: %s, recall: %s, F1: %s"%(acc, precision, recall, f1))
-		## 1 from 11 task evaluation
-		yp_raw_ = np.copy(yp_raw)
-		yp_ = np.copy(yp_raw)
-		acc1, yp = accuracy_at_k(yp_raw_,Y_dev,cand_len_dev,1)
-		acc2,_ =  accuracy_at_k(yp_,Y_dev,cand_len_dev,2)
-		acc = (acc1,acc2)
-		print(yp[:10])
-		precision, recall, f1, _ = precision_recall_fscore_support(Y_dev, yp)
-		print("Easy choose 1 from 11 Case. Accuracy: %s, precision: %s, recall: %s, F1: %s, loss:%s"%(acc, precision, recall, f1,score[0]))
+		# model1 = build_base_model(X.shape[1],h_sz = hiddens)
+		# model2 = build_base_model(X.shape[1],h_sz = hiddens)
+		# # model1 = build_base_model(X.shape[1],h_sz = [hiddens],fn = ['relu','sigmoid'])
+		# # model2 = build_base_model(X.shape[1],h_sz = [hiddens],fn = ['relu','sigmoid'])
+
+		# ## binary task
+		# model1.fit(X_train_ds,Y_train_ds,epochs=20,verbose=0)
+		# score = model1.evaluate(X_dev_ds,Y_dev_ds)
+		# yp = model1.predict(X_dev_ds)
+		
+		# yp[np.where(yp>=0.5)]=1
+		# yp[np.where(yp<0.5)]=0
+		# acc = accuracy(yp,Y_dev_ds) 
+		# precision, recall, f1, _ = precision_recall_fscore_support(yp,Y_dev_ds)
+		# print("\nEasy binary Case. Accuracy: %s, precision: %s, recall: %s, F1: %s, loss:%s, accuracy: %s"%(acc, precision, recall, f1,score[0], score[1]))
+		
+		# ## 1 from 11 task
+		# model2.fit(X_train, Y_train, epochs=20,verbose=0)
+		# yp_raw = model2.predict(X_dev)
+		# score = model2.evaluate(X_dev,Y_dev)
+		# yp_raw_ = np.copy(yp_raw)
+		# yp_ = np.copy(yp_raw)
+		# acc1, yp = accuracy_at_k(yp_raw_,Y_dev,cand_len_dev,1)
+		# acc2,_ =  accuracy_at_k(yp_,Y_dev,cand_len_dev,2)
+		# acc = (acc1,acc2)
+		# precision, recall, f1, _ = precision_recall_fscore_support(yp,Y_dev)
+		# print("\nEasy choose 1 from 11 Case. Accuracy: %s, precision: %s, recall: %s, F1: %s, loss:%s"%(acc, precision, recall, f1,score[0]))
 		
 		#############
 		## second step of incremental training
 		#############
-		model2 = build_base_model(X.shape[1],h_sz = hiddens, weights=model1.get_weights())
-		model2.fit(X_train2,Y_train2,epochs=20,verbose=0)
-		score = model2.evaluate(X_dev2,Y_dev2)
-		loss = score[0]
-		yp_raw = model2.predict(X_dev2)
-		## binary evaluation
-		yp_ = np.copy(yp_raw)
-		yp_[np.where(yp_>=0.5)]=1
-		yp_[np.where(yp_<0.5)]=0
-		acc = accuracy(yp_,Y_dev2) 
-		precision, recall, f1, _ = precision_recall_fscore_support(Y_dev2,yp_)
-		print("\nHard binary Case. Accuracy: %s, precision: %s, recall: %s, F1: %s, accuracy: %s"%(acc, precision, recall, f1, score[1]))
-		## 1 from 11 task evaluation
-		yp_raw_ = np.copy(yp_raw)
-		yp_ = np.copy(yp_raw)
-		acc1, yp = accuracy_at_k(yp_raw_,Y_dev2,cand_len_dev2,1)
-		acc2,_ =  accuracy_at_k(yp_,Y_dev2,cand_len_dev2,2)
-		acc = (acc1,acc2)
-		precision, recall, f1, _ = precision_recall_fscore_support(Y_dev2, yp)
-		print("Hard choose 1 from 11 Case.  Accuracy: %s, precision: %s, recall: %s, F1: %s, loss:%s"%(acc, precision, recall, f1,score[0]))
+		# model1 = build_base_model(X.shape[1],h_sz = hiddens, weights=model1.get_weights())
+		# model2 = build_base_model(X.shape[1],h_sz = hiddens, weights=model2.get_weights())
+		model = build_base_model(X2.shape[1],h_sz = hiddens, weights=None,fn=fn)
 		
-		if loss < best_loss:
-			best_model = (model1, model2)
-			best_acc = acc
-			results = (acc,precision,recall,f1)
-			best_config = hiddens
-			best_yp = yp_raw
-			best_loss = loss
+		for epoch in epochs:
+			print("--> EPOCH = ",epoch)
+			## binary task
+			history = model.fit(X_train_ds2,Y_train_ds2,epochs=epoch,verbose=0)
+			score = model.evaluate(X_dev_ds2,Y_dev_ds2)
+			loss1 = score[0]
+			yp = model.predict(X_dev_ds2)
+			
+			yp[np.where(yp>=0.5)]=1
+			yp[np.where(yp<0.5)]=0
+			acc = accuracy(yp,Y_dev_ds2) 
+			precision, recall, f1, _ = precision_recall_fscore_support(yp,Y_dev_ds2)
+			
+			print("\nHard binary Case. On validation Accuracy: %s, precision: %s, recall: %s, F1: %s, loss:%s, accuracy: %s. On training loss: %s, accuracy: %s"\
+				%(acc, precision, recall, f1,score[0], score[1],history.history['loss'][-1],history.history['binary_accuracy'][-1]))
+			
+			## 1 from 11 task
+			# history = model2.fit(X_train2, Y_train2, epochs=epoch,verbose=0)
+			yp_raw = model.predict(X_dev2)
+			score = model.evaluate(X_dev2,Y_dev2)
+			loss2 = score[0]
+			yp_raw_ = np.copy(yp_raw)
+			yp_ = np.copy(yp_raw)
+			acc1, yp = accuracy_at_k(yp_raw_,Y_dev2,cand_len_dev2,1)
+			acc2,_ =  accuracy_at_k(yp_,Y_dev2,cand_len_dev2,2)
+			acc = (acc1,acc2)
+			precision, recall, f1, _ = precision_recall_fscore_support(yp,Y_dev2)
+			print("\nHard choose 1 from 11 Case.  Accuracy: %s, precision: %s, recall: %s, F1: %s, loss:%s."\
+				%(acc, precision, recall, f1,score[0]))
+			
+			if loss2 < best_loss:
+				# best_model = (model1, model2)
+				best_model = model
+				best_acc = acc
+				results = (acc,precision,recall,f1)
+				best_config = hiddens
+				best_yp = yp_raw
+				best_loss = loss2
 	print("\n\n###############")
 	print("Best Model results on validation -- Accuracy: %s, precision: %s, recall: %s, F1: %s, loss:%s"%(best_acc,results[1],results[2],results[3],best_loss))
 	print("model hidden size:",best_config)
 	print("Removed features:",rm_feat)
 	print("Downsampled on validation:", downsample_dev)
 
-	
 	np.save("pred/yp_ffnn_2step/"+str(best_config),yp_raw)
 
 	if savename:
-		save(best_model[0],savename+str(best_config)+"_binary")
-		save(best_model[1],savename+str(best_config)+"_nonbin")
+		save(best_model,savename+str(best_config))
 		print("Saving directory: "+savename)
 	# print("*** Testing ***")
 	# test_model(best_model[1],savename = "pred/yp_ffnn_2step/ytest"+str(best_config), rm_feat = rm_feat, n_pca = n_pca, pca = pca)
@@ -269,12 +299,13 @@ if __name__ == '__main__':
 	### rm_feat: {"src_cluster","src_se","sum_cluster","sum_overlap","sum_pos","sum_posbin","sum_num","sum_se",
 	# "cand_pos","cand_cluid","cand_prob","cand_M","cand_se",
 	# "interac_trans","interac_pos","interac_M","interac_sim_nprev","interac_w_overlap","interac_emis"}
-	train( rm_feat={"cand_se","src_se","sum_se"},n_pca = None, savename = None)
-	train( rm_feat={},n_pca = 0 ,savename=None)
+	# train( rm_feat={"cand_se","src_se","sum_se"},n_pca = None, savename = "models/ffnn_newfeats/NoEmbedding_")
+	train( rm_feat={},n_pca = 0 ,savename="models/ffnn_newfeats/Normalize_")
 	# train (savename = "models/ffnn_2step_2.0/bi_classif_War_embeddings", rm_feat = {"src_cluster","sum_cluster","sum_overlap","sum_pos","sum_posbin","sum_num",
 	# "cand_pos","cand_cluid","cand_prob","cand_M","interac_trans","interac_pos","interac_M","interac_sim_nprev","interac_w_overlap","interac_emis"}, downsample_dev=False)
-	
-	# testing
+	# train( rm_feat= {'sum_cluster', 'interac_emis', 'src_cluster', 'cand_prob'},n_pca = 0 ,savename="models/ffnn_2step_2.0/weird")
+
+	## testing
 	# rm_feat={"cand_se","src_se","sum_se"}
 	# model = build_base_model(64, h_sz=[815,646])
 	# model = load(model, "/home/ml/jliu164/code/Summarization/models/ffnn_2step/bi_classif_War2(815, 646)_nonbin")

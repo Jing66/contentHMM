@@ -100,10 +100,20 @@ def word2vec_file(filename,we_file = "/home/ml/jliu164/code/data/utils/we_file.j
 	with open(we_file,"w") as outfile:
 		json.dump(word2vec,outfile,ensure_ascii=False)
 
-
+### PCA on word embeddings
 class MyPCA():
 	def __init__(self, X):
-		self.U, self.s, self.V = scipy.linalg.svd(X, full_matrices=False)
+		## my own implementation of PCA using numpy
+		X = X.T
+		C = np.cov(X)
+		eig_val_cov, eig_vec_cov = np.linalg.eig(C)
+		eig_pairs = [(np.abs(eig_val_cov[i]), eig_vec_cov[:,i]) for i in range(len(eig_val_cov))]
+		eig_pairs.sort(key=lambda x: x[0], reverse=True)
+		eig_vec = [p[1] for p in eig_pairs] ## sorted eigen_vec
+		self.V = np.stack(eig_vec,axis=1)
+		# print("self.V shape",self.V.shape)
+
+		# self.U, self.s, self.V = scipy.linalg.svd(X, full_matrices=False)
 		# self.U, self.s, self.V = SVD(X, X.shape[1])
 
 	def transform(self, n_component, x):
@@ -114,7 +124,6 @@ class MyPCA():
 def pca_we():
 	### perform pca decomposition on GloVe embedding. result in a linear transformation. return the fitted PCA
 	we = np.load("../data/utils/we_pca.npy")
-	print("embedding shape",we.shape)
 	## sklearn PCA -- Too slow???
 	# pca = PCA(n_components = n_component)
 	# print("fitting PCA...")
@@ -124,12 +133,9 @@ def pca_we():
 
 	## My implementation
 	pca = MyPCA(we)
-	print("PCA decomposed!")
+	# print("PCA decomposed!")
 	pickle.dump(pca, open("../data/utils/pca.pkl","wb"))
 	return pca
-
-
-	
 
 
 def _freq_we():
@@ -235,6 +241,74 @@ def generate_Y(topics,filename =  "/home/ml/jliu164/code/data/importance_input/t
 	return Y
 
 
+
+#########################
+## Preprocess POS tags
+#########################
+def word_POS_NER(ds = 1, topic ='War Crimes and Criminals'):
+	"""
+	For each source article, extract each word's POS, NER and present it using integer.
+	Save extracted matricies: data/utils/pos_tags, pos to integer mapping: data/utils/pos2idx.json
+	"""
+	from corenlpy import AnnotatedText as A
+	from nltk.corpus import stopwords
+	STOPWORDS = set(stopwords.words('english'))
+	save_path = "/home/ml/jliu164/code/filter_results/topic2files(content).pkl"
+	fail_path = '/home/ml/jliu164/code/contentHMM_input/fail/'
+	corpus_path =  "/home/rldata/jingyun/nyt_corpus/content_annotated/"
+	files_ = pickle.load(open(save_path))[topic]
+	with open(fail_path+topic+"_Failed.txt") as f:
+		paths = f.readlines()
+		failed = set([p.split("/")[-1].split(".")[0] for p in paths])
+	files = [fs for fs in files_[:-1] if fs.split('/')[-1].split(".")[0] not in failed]
+	files = files[int(-np.around(0.1*len(files))):] if ds==2 else files[int(np.around(0.1*len(files))):int(-np.around(0.1*len(files)))]
+	print("length of files to process",len(files))
+
+	pos2idx = {} #(pos tag: int)
+	lemma2idx = {}	#(lemma: int)
+	lemma2pos = {} # (lemma: POS tag)
+	ner2idx = {}
+	lemma2ner = {}
+	count_ner = 0
+	count_pos = 0
+	count_lemma = 0
+	
+	for f in files:
+		xml = open(corpus_path+f).read()
+		annotated_text = A(xml)
+		for sentence in annotated_text.sentences:
+			
+			tokens = sentence['tokens']
+			pos_lemma = [(i['pos'],i["lemma"]) for i in tokens if i['word'].isalpha() and i['lemma'].isalpha() and not i['lemma'].lower() in STOPWORDS and i['pos']] # a list of (POS, lemma)
+			ner_lemma = [(i['ner'],i["lemma"]) for i in tokens if i['word'].isalpha() and i['lemma'].isalpha() and not i['lemma'].lower() in STOPWORDS and i['ner']] # a list of (NER, lemma)
+			for p,l in pos_lemma:
+				if not pos2idx.get(p):
+					pos2idx[p] = count_pos
+					count_pos +=1
+					
+				if not lemma2idx.get(l):
+					lemma2idx[l] = count_lemma
+					count_lemma +=1
+				
+				lemma2pos[l] = p
+			
+			for n,l in ner_lemma:
+				if not pos2idx.get(p):
+					ner2idx[n] = count_ner
+					count_ner +=1
+					
+				if not lemma2idx.get(l):
+					lemma2idx[l] = count_lemma
+					count_lemma +=1
+				
+				lemma2ner[l] = n
+		
+	json.dump(pos2idx, open("/home/ml/jliu164/code/data/utils/pos2idx"+str(ds)+".json","wb"))
+	json.dump(lemma2idx, open("/home/ml/jliu164/code/data/utils/lemma2idx"+str(ds)+".json","wb"))
+	json.dump(lemma2pos, open("/home/ml/jliu164/code/data/utils/lemma2pos"+str(ds)+".json","wb"))
+	json.dump(lemma2ner, open("/home/ml/jliu164/code/data/utils/lemma2ner"+str(ds)+".json","wb"))
+	json.dump(ner2idx, open("/home/ml/jliu164/code/data/utils/ner2idx"+str(ds)+".json","wb"))
+
 if __name__ == '__main__':
 	# word2vec_file("/home/ml/jliu164/code/data/word_embeddings.txt")
 	# _count2()
@@ -253,7 +327,9 @@ if __name__ == '__main__':
 	# _count2()
 
 	# _freq_we()
-	pca = pca_we()
-	v = np.random.rand(3,300)
-	v_ = pca.transform(100,v)
-	print(v_.shape)
+	# pca = pca_we()
+	# v = np.random.rand(3,300)
+	# v_ = pca.transform(100,v)
+	# print(v_.shape)
+
+	word_POS_NER()

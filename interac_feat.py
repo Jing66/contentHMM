@@ -37,10 +37,10 @@ topic ='War Crimes and Criminals'
 print("Making interact feature... ds=%s, topic =%s, n_dim = %s"%(ds,topic,n_dim))
 
 
-doc,_ = pickle.load(open(input_path+"contents/"+topic+"/"+topic+str(ds)+".pkl","rb"))
-summary, _ = pickle.load(open(input_path+"summaries/"+topic+"/"+topic+str(ds)+".pkl","rb"))
+doc,_ = pickle.load(open(input_path+"contents/"+topic+"/"+topic+str(ds)+".pkl","rb"),encoding="latin-1",errors="ignore")
+summary, _ = pickle.load(open(input_path+"summaries/"+topic+"/"+topic+str(ds)+".pkl","rb"),encoding="latin-1",errors="ignore")
 doc_flat = [i for val in doc for i in val]
-model = pickle.load(open(_model_path+topic+".pkl","rb"))
+model = pickle.load(open(_model_path+topic+".pkl","rb"),encoding="latin-1",errors="ignore")
 len_ind = _length_indicator(ds=ds,topic=topic)
 
 # doc = doc[:5]
@@ -62,16 +62,29 @@ print("transition matrix shape",transition.shape)
 
 def _similarity(sum_sents, cand_sents):
 	## return cosine similarity (#cand_sents,N_PREV)
+	# x = np.zeros((len(cand_sents),N_PREV))
+	# words_sum = [set(c) for c in sum_sents]
+	# words_cands = [set(c) for c in cand_sents]
+	# offset = max(0,len(sum_sents)-N_PREV)
+	# for i in range(len(cand_sents)):
+	# 	for j in range(len(sum_sents)-1, offset-1,-1):
+	# 		print("Comparing %sth summary sentence with %sth candidate sentence. saving in %sth column"%(j,i,j-offset))
+	# 		x[i][j-offset] = len(words_sum[j].intersection(words_cands[i]))/math.sqrt(len(words_sum[j])*len(words_cands[i]))
+	
+	# return x
+
+	sum_sents = sum_sents[-N_PREV:] if len(sum_sents)>N_PREV else sum_sents
 	x = np.zeros((len(cand_sents),N_PREV))
 	words_sum = [set(c) for c in sum_sents]
 	words_cands = [set(c) for c in cand_sents]
-	offset = max(0,len(sum_sents)-N_PREV)
+	offset = N_PREV - len(sum_sents)
 	for i in range(len(cand_sents)):
-		for j in range(len(sum_sents)-1, offset-1,-1):
-			# print("Comparing %sth summary sentence with %sth candidate sentence. saving in %sth column"%(j,i,j-offset))
-			x[i][j-offset] = len(words_sum[j].intersection(words_cands[i]))/math.sqrt(len(words_sum[j])*len(words_cands[i]))
-	
+		for j in range(len(sum_sents)):
+			# print("Comparing %sth summary sentence with %sth candidate sentence. saving in %sth column"%(j,i,j+offset))
+			x[i][j+offset] = len(words_sum[j].intersection(words_cands[i]))/math.sqrt(len(words_sum[j])*len(words_cands[i]))
 	return x
+
+
 
 
 def _m_freq(freq_map,doc,cands_idx,word2idx):
@@ -142,7 +155,7 @@ def non_rdn(savename =  data_path+"FFNN/X_interac_nprev"):
 			x = np.zeros((int(n_i),n_dim))
 			if n_i != 0:
 				## P(S_cand|S_last summary)
-				f_s = np.array(flat_s[idx_+1]) # index from summary
+				f_s = np.array(flat_s[idx_]) # index from summary
 				f_c = np.array(flat_c[int(cur_idx+1):int(cur_idx+n_i+1)])
 				x[...,0] = transition[f_s,f_c]
 				## pos(cand) - pos(last summary)
@@ -239,7 +252,7 @@ def rdn(savename =  data_path+"FFNN/X_interac_rdn"):
 			x = np.zeros((len(n_i),n_dim))
 
 			## P(S_cand|S_last summary)
-			f_s = np.array(flat_s[idx_+1]) # index from summary
+			f_s = np.array(flat_s[idx_]) # index from summary
 			f_c = np.array([flat_c[ni] for ni in n_i.astype(int)])
 			x[...,0] = transition[f_s,f_c]
 			## pos(cand) - pos(last summary sentence)
@@ -286,7 +299,7 @@ def rdn(savename =  data_path+"FFNN/X_interac_rdn"):
 ############ Random Sample: easy version, sample from other source ################
 def rdn_easy(savename =  data_path+"FFNN/X_interac_rdn_easy"):
 	# load samples and add EOS
-	cand_rec = pickle.load(open(cand_rec_path+"rdn_sample_easy"+str(ds)+".pkl",'rb'))
+	cand_rec = pickle.load(open(cand_rec_path+"rdn_sample_easy"+str(ds)+".pkl",'rb'),encoding="latin-1",errors="ignore")
 	
 	X = np.zeros(n_dim)
 	idx_cand = 0
